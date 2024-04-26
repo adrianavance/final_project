@@ -9,6 +9,8 @@ editor: visual
 library(tidyverse)
 library(here)
 library(readxl)
+library(tidyr)
+
 ```
 
 ### Loading, Cleaning and Merging Datasets
@@ -19,6 +21,8 @@ How to access the data:
 
 \- **County Health Rankings**: At [this link](https://www.countyhealthrankings.org/health-data/methodology-and-sources/data-documentation), click "2024 CHR CSV Analytic Data". Rename file "CHR.csv"
 
+\- **Food Environment Atlas**: At [this link](https://www.ers.usda.gov/data-products/food-environment-atlas/data-access-and-documentation-downloads/#Current%20Version), click "Food Environemnt Atlas .csv Files." Open the .zip file, move "StateAndCountyData.csv" into data folder, rename "FEA.csv". Move "SupplementalDataCounty.csv" into data folder, rename "FEA_supplement.csv". Move "VariableList.csv" into the data folder. 
+
 \- **Food Environment Atlas**: At [this link](https://www.ers.usda.gov/data-products/food-environment-atlas/data-access-and-documentation-downloads/#Current%20Version), click "Food Environemnt Atlas .csv Files." Open the .zip file, move "StateAndCountyData.csv" into data folder, rename "FEA.csv". Move "SupplementalDataCounty.csv" into data folder, rename "FEA_supplement.csv".
 
 \- **SNAP Policy Data:** At [this link](https://www.ers.usda.gov/data-products/snap-policy-data-sets/), click "Snap Policy Database." Move into data folder, rename "snap.xlsx"
@@ -27,6 +31,7 @@ How to access the data:
 county_health_rankings <- read_csv(here("data", "CHR.csv"), col_names = TRUE)
 food_atlas <- read_csv(here("data", "FEA.csv"))
 food_atlas_supplement <- read_csv(here("data", "FEA_supplement.csv"))
+atlas_vars <- read_csv(here("data", "VariableList.csv"))
 snap <- read_excel(here("data", "snap.xlsx"), sheet = 2)
 
 ```
@@ -53,3 +58,50 @@ The food environment atlas has various variables measuring access to food and ot
 The SNAP policy dataset is tidy and organized by state. Easy to interpret, but the observations are by yearmonth, meaning there are 12 observations for every year of the data. Not sure how to navigate this.
 
 Challenges/to do: Clean datasets, understand what year all the variables come from, see if it is possible to merge datasets by county and understand which counties have changed overtime. [This link](https://www.census.gov/programs-surveys/geography/technical-documentation/county-changes.2010.html#list-tab-957819518) could be helpful for knowing which county boundaries have changed overtime.
+
+### Tidying the Datasets for Merging
+
+1.  Each variable must form a column
+2.  Each observation must form a row
+3.  Each type of observational unit forms a dataframe.
+
+#### Food Atlas Dataframe
+```{r}
+
+# Changing values from scientific notation, and rounding decimals to be shorter
+food_atlas <- food_atlas %>%
+  mutate(Value = format(Value, scientific = FALSE)) %>%
+  mutate(Value = map_dbl(food_atlas$Value, round, digits = 4))
+
+# Pivoting dataset to tidy - variables as columns and counties as rows 
+
+atlas_test <- food_atlas %>%
+  pivot_wider(id_cols  = c(FIPS), # ID col is FIPS because of identical county names
+              names_from = c(Variable_Code), 
+              values_from = Value) %>%
+  filter(FIPS > 1000) 
+
+# There are two more variables than counties. The two observations here have NA values for all variables so will be filtered from the data
+atlas_test %>%
+  filter(is.na(atlas_test$LACCESS_POP10))
+
+#Filtering here
+atlas_test <- atlas_test %>%
+  filter(FIPS != 2158 & FIPS != 46102)
+
+# Create a tibble with unique state-county FIPS combos 
+strings <- c("County", "Total", "Parish", "city", "Borough", "Census Area", "Municipality")
+fips_distinct <- food_atlas %>%
+  group_by(FIPS) %>%
+  select(State, County, FIPS) %>%
+  distinct() %>%
+  filter(!str_detect(County, pattern = paste(strings, collapse = "|")))
+
+# Bind dataframes with data and county/state names
+
+food_atlas <- full_join(fips_distinct, atlas_test)
+
+```
+Here, we pivoted the data to be wider such that each unique county name formed a row. To do so, we used the FIPS codes which are unique identifiers of each county. 
+After pivoting, we noticed there were state-level variables and duplicates of each county. We filtered out any county duplicates using stringr, and created a dataframe of unique state, county, and FIPS codes to join with the final dataset. 
+The final dataset has 3,143 unique observations, which is the number of counties in the U.S. 

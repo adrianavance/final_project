@@ -10,6 +10,7 @@ library(tidyverse)
 library(here)
 library(readxl)
 library(tidyr)
+
 ```
 
 ### Loading, Cleaning and Merging Datasets
@@ -20,7 +21,10 @@ How to access the data:
 
 \- **County Health Rankings**: At [this link](https://www.countyhealthrankings.org/health-data/methodology-and-sources/data-documentation), click "2024 CHR CSV Analytic Data". Rename file "CHR.csv"
 
+<<<<<<< HEAD
 \- **Food Environment Atlas**: At [this link](https://www.ers.usda.gov/data-products/food-environment-atlas/data-access-and-documentation-downloads/#Current%20Version), click "Food Environemnt Atlas .csv Files." Open the .zip file, move "StateAndCountyData.csv" into data folder, rename "FEA.csv". Move "SupplementalDataCounty.csv" into data folder, rename "FEA_supplement.csv". Move "VariableList.csv" into the data folder. 
+=======
+\- **Food Environment Atlas**: At [this link](https://www.ers.usda.gov/data-products/food-environment-atlas/data-access-and-documentation-downloads/#Current%20Version), click "Food Environemnt Atlas .csv Files." Open the .zip file, move "StateAndCountyData.csv" into data folder, rename "FEA.csv". Move "SupplementalDataCounty.csv" into data folder, rename "FEA_supplement.csv".
 
 \- **SNAP Policy Data:** At [this link](https://www.ers.usda.gov/data-products/snap-policy-data-sets/), click "Snap Policy Database." Move into data folder, rename "snap.xlsx"
 

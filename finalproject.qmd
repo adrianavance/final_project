@@ -1,0 +1,55 @@
+---
+title: "Final Project"
+author: "Jane Finocharo, Adriana Vance, and Ruining Zheng"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(here)
+library(readxl)
+```
+
+### Loading, Cleaning and Merging Datasets
+
+We might want to find an easier way to load in the data, but for now I just created a data folder in my directory, and named the files CHR.csv, FEA.csv, FEA_supplement.csv, and snap.xlsx
+
+How to access the data:
+
+\- **County Health Rankings**: At [this link](https://www.countyhealthrankings.org/health-data/methodology-and-sources/data-documentation), click "2024 CHR CSV Analytic Data". Rename file "CHR.csv"
+
+\- **Food Environment Atlas**: At [this link](https://www.ers.usda.gov/data-products/food-environment-atlas/data-access-and-documentation-downloads/#Current%20Version), click "Food Environemnt Atlas .csv Files." Open the .zip file, move "StateAndCountyData.csv" into data folder, rename "FEA.csv". Move "SupplementalDataCounty.csv" into data folder, rename "FEA_supplement.csv".
+
+\- **SNAP Policy Data:** At [this link](https://www.ers.usda.gov/data-products/snap-policy-data-sets/), click "Snap Policy Database." Move into data folder, rename "snap.xlsx"
+
+```{r}
+county_health_rankings <- read_csv(here("data", "CHR.csv"), col_names = TRUE)
+food_atlas <- read_csv(here("data", "FEA.csv"))
+food_atlas_supplement <- read_csv(here("data", "FEA_supplement.csv"))
+snap <- read_excel(here("data", "snap.xlsx"), sheet = 2)
+
+```
+
+The county health rankings dataset has over 700 variables. We need to pick which ones we'd like to take as health measures of our counties. The other problem is understanding which years these datapoints come from, because it seems to differ by measure. Variables from county health rankings data that may be helpful:
+
+-   v133_rawvalue, v133_numerator, v133_denominator (food environment index)
+-   v132_rawvalue, v132_numerator, v132_denominator (access to exercise opportunities)
+-   v132_rawvalue, v132_numerator, v132_denominator (income inequality)
+-   v024_rawvalue, v024_numerator, v024_denominator (children in poverty)
+-   v125_rawvalue, v125_numerator, v125_denominator (air pollution particulate matter)
+-   v147_rawvalue, v147_numerator, v147_denominator (life expectancy)
+-   v139_rawvalue, v139_numerator (food insecurity)
+-   v083_rawvalue, v083_numerator, v083_denominator (ltd. access to healthy foods)
+-   v003_rawvalue, v003_numerator, v003_denominator (uninsured adults)
+-   v003_rawvalue, v003_numerator, v003_denominator (uninsured children)
+-   v021_rawvalue, v021_numerator, v021_denominator (HS graduation)
+-   v171_rawvalue (childcare cost burdened)
+-   v156_rawvalue (traffic volume)
+-   v058_rawvalue, v058_numerator, v058_denominator (rural)
+
+The food environment atlas has various variables measuring access to food and other things, but the data is not tidy. Needs to be reorganized. The supplement contains population estimates. May be helpful as controls? - Might be helpful to select which food atlas variables we want to keep before tidying the data. That way we can filter beforehand.
+
+The SNAP policy dataset is tidy and organized by state. Easy to interpret, but the observations are by yearmonth, meaning there are 12 observations for every year of the data. Not sure how to navigate this.
+
+Challenges/to do: Clean datasets, understand what year all the variables come from, see if it is possible to merge datasets by county and understand which counties have changed overtime. [This link](https://www.census.gov/programs-surveys/geography/technical-documentation/county-changes.2010.html#list-tab-957819518) could be helpful for knowing which county boundaries have changed overtime.

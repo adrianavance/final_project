@@ -10,6 +10,7 @@ library(tidyverse)
 library(here)
 library(readxl)
 library(tidyr)
+library(lubridate)
 
 ```
 
@@ -21,7 +22,7 @@ How to access the data:
 
 \- **County Health Rankings**: At [this link](https://www.countyhealthrankings.org/health-data/methodology-and-sources/data-documentation), click "2024 CHR CSV Analytic Data". Rename file "CHR.csv"
 
-\- **Food Environment Atlas**: At [this link](https://www.ers.usda.gov/data-products/food-environment-atlas/data-access-and-documentation-downloads/#Current%20Version), click "Food Environemnt Atlas .csv Files." Open the .zip file, move "StateAndCountyData.csv" into data folder, rename "FEA.csv". Move "SupplementalDataCounty.csv" into data folder, rename "FEA_supplement.csv". Move "VariableList.csv" into the data folder. 
+\- **Food Environment Atlas**: At [this link](https://www.ers.usda.gov/data-products/food-environment-atlas/data-access-and-documentation-downloads/#Current%20Version), click "Food Environemnt Atlas .csv Files." Open the .zip file, move "StateAndCountyData.csv" into data folder, rename "FEA.csv". Move "SupplementalDataCounty.csv" into data folder, rename "FEA_supplement.csv". Move "VariableList.csv" into the data folder.
 
 \- **Food Environment Atlas**: At [this link](https://www.ers.usda.gov/data-products/food-environment-atlas/data-access-and-documentation-downloads/#Current%20Version), click "Food Environemnt Atlas .csv Files." Open the .zip file, move "StateAndCountyData.csv" into data folder, rename "FEA.csv". Move "SupplementalDataCounty.csv" into data folder, rename "FEA_supplement.csv".
 
@@ -66,6 +67,7 @@ Challenges/to do: Clean datasets, understand what year all the variables come fr
 3.  Each type of observational unit forms a dataframe.
 
 #### Food Atlas Dataframe
+
 ```{r}
 
 # Changing values from scientific notation, and rounding decimals to be shorter
@@ -102,6 +104,24 @@ fips_distinct <- food_atlas %>%
 food_atlas <- full_join(fips_distinct, atlas_test)
 
 ```
-Here, we pivoted the data to be wider such that each unique county name formed a row. To do so, we used the FIPS codes which are unique identifiers of each county. 
-After pivoting, we noticed there were state-level variables and duplicates of each county. We filtered out any county duplicates using stringr, and created a dataframe of unique state, county, and FIPS codes to join with the final dataset. 
-The final dataset has 3,143 unique observations, which is the number of counties in the U.S. 
+
+Here, we pivoted the data to be wider such that each unique county name formed a row. To do so, we used the FIPS codes which are unique identifiers of each county. After pivoting, we noticed there were state-level variables and duplicates of each county. We filtered out any county duplicates using stringr, and created a dataframe of unique state, county, and FIPS codes to join with the final dataset. The final dataset has 3,143 unique observations, which is the number of counties in the U.S.
+
+#### SNAP Dataframe
+```{r}
+
+# Round the decimals to be the same pattern as above
+snap <- snap %>%
+  mutate_if(is.numeric, ~ round(., digits = 4)) %>%
+  filter(yearmonth >= 201001) %>% # Only keep the data after year 2010. to assure that our analysis is closely connected to the current policies and circumstances.
+  mutate(yearmonth = ym(yearmonth)) %>%
+  mutate(year = year(yearmonth)) # Since the CHR data only contains year data, we also mutate a new column for year in SNAP. 
+
+# Many rows have a large proportion of missing data, which add noise to the data. 
+snap_na <- snap %>%
+  mutate(na_count = rowSums(is.na(.))) %>%
+  filter(na_count < 20) # We filter out rows with too many NA values (more than half of the variables except identifying variables)
+
+```
+
+The SNAP dataframeis a state-level dataframe of monthly reported data of SNAP policy relevant information by each state from 1996 to 2019. It supposed to have 51*12*10 = 6120 observations, but since we filter out data before year 2010 as well as states' data with too many missing values, the actual observation number is smaller.

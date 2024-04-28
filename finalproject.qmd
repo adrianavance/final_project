@@ -145,8 +145,9 @@ chr_small <-
   county_health_rankings |> 
   select(state_fips = 'State FIPS Code',
          county_fips = 'County FIPS Code',
+         state = 'State Abbreviation',
          fips_5_digit = '5-digit FIPS Code',
-         name = 'Name',
+         county = 'Name',
          food_env_index = 'Food Environment Index raw value',
          exercise_access = 'Access to Exercise Opportunities raw value',
          child_poverty = 'Children in Poverty raw value',
@@ -160,7 +161,13 @@ chr_small <-
          rural = '% Rural raw value', 
          hs_grad_rate = 'High School Graduation raw value',
          food_insecurity = 'Food Insecurity raw value',
-         life_expectancy = 'Life Expectancy raw value')
+         life_expectancy = 'Life Expectancy raw value') |> 
+  filter(county_fips!="000") |> 
+  mutate(
+    fips = as.numeric(fips_5_digit)) |> 
+  select(!c(state_fips, county_fips, fips_5_digit)) |> 
+  mutate_if(is.numeric, ~ round(., digits = 4))
+  
 
 
 

@@ -1,17 +1,17 @@
 ---
-title: "Final Project"
+  title: "Final Project"
 author: "Jane Finocharo, Adriana Vance, and Ruining Zheng"
 format: html
 editor: visual
 ---
-
+  
 ```{r}
 library(tidyverse)
 library(here)
 library(readxl)
 library(tidyr)
 library(lubridate)
-
+library(DescTools)
 ```
 
 ### Loading, Cleaning and Merging Datasets
@@ -19,15 +19,15 @@ library(lubridate)
 We might want to find an easier way to load in the data, but for now I just created a data folder in my directory, and named the files CHR.csv, FEA.csv, FEA_supplement.csv, and snap.xlsx
 
 How to access the data:
-
-\- **County Health Rankings**: At [this link](https://www.countyhealthrankings.org/health-data/methodology-and-sources/data-documentation), click "2024 CHR CSV Analytic Data". Rename file "CHR.csv"
+  
+  \- **County Health Rankings**: At [this link](https://www.countyhealthrankings.org/health-data/methodology-and-sources/data-documentation), click "2024 CHR CSV Analytic Data". Rename file "CHR.csv"
 
 \- **Food Environment Atlas**: At [this link](https://www.ers.usda.gov/data-products/food-environment-atlas/data-access-and-documentation-downloads/#Current%20Version), click "Food Environemnt Atlas .csv Files." Open the .zip file, move "StateAndCountyData.csv" into data folder, rename "FEA.csv". Move "SupplementalDataCounty.csv" into data folder, rename "FEA_supplement.csv". Move "VariableList.csv" into the data folder.
-
+                                                
 \- **SNAP Policy Data:** At [this link](https://www.ers.usda.gov/data-products/snap-policy-data-sets/), click "Snap Policy Database." Move into data folder, rename "snap.xlsx"
-
+                                              
 ```{r}
-
+                                              
 # county health rankings
 chr_col_names <- names(read_csv(here("data", "CHR.csv"), n_max = 0))
 county_health_rankings <- read_csv(here("data", "CHR.csv"), col_names = chr_col_names, skip = 2)
@@ -41,7 +41,7 @@ atlas_vars <- read_csv(here("data", "VariableList.csv"))
 snap <- read_excel(here("data", "snap.xlsx"), sheet = 2)
 
 ```
-
+                                              
 The county health rankings dataset has over 700 variables. We need to pick which ones we'd like to take as health measures of our counties. The other problem is understanding which years these datapoints come from, because it seems to differ by measure. Variables from county health rankings data that may be helpful:
 
 -   v133_rawvalue, v133_numerator, v133_denominator (food environment index)
@@ -128,11 +128,75 @@ snap_na <- snap %>%
   mutate(na_count = rowSums(is.na(.))) %>%
   filter(na_count < 20) # We filter out rows with too many NA values (more than half of the variables except identifying variables)
 
+snap_natest <- snap %>%
+  select(-transben, -call_any, -faceini, -facerec, -(starts_with("cert"))) %>%
+  na.omit()
+
+rename_columns <- function(date, yearname){
+
+  snap_date <- snap_natest %>%
+  group_by(state_pc, year) %>%
+  summarize_all(list(avg = Mode())) %>%
+  select(-state_fips_avg, -statename_avg, -yearmonth_avg) %>%
+  filter(year == date) 
+
+  
+names_date <- names(snap_date)
+new_date <- paste(names_date, yearname, sep = "")
+names(snap_date) <- new_date
+
+return(snap_date)
+}
+
+rename_columns <- function(date, yearname){
+  snap_date <- snap_natest %>%
+    filter(year == date) %>%
+    group_by(state_pc, year) %>%
+    summarize_all(list(mode = ~Mode(.))) %>%
+    select(-state_fips_mode, -statename_mode, -yearmonth_mode) %>%
+    distinct(state_pc, .keep_all = TRUE)  # Keep only one row per state_pc
+
+  names_date <- names(snap_date)
+  new_date <- paste(names_date, yearname, sep = "")
+  names(snap_date) <- new_date
+
+  return(snap_date)
+}
+snap_2010 <- rename_columns(date = 2010, yearname = "_2010")
+snap_2011 <- rename_columns(date = 2011, yearname = "_2011")
+snap_2012 <- rename_columns(date = 2012, yearname = "_2012")
+snap_2013 <- rename_columns(date = 2013, yearname = "_2013")
+snap_2014 <- rename_columns(date = 2014, yearname = "_2014")
+snap_2015 <- rename_columns(date = 2015, yearname = "_2015")
+snap_2016 <- rename_columns(date = 2016, yearname = "_2016")
+snap_2017 <- rename_columns(date = 2017, yearname = "_2017")
+snap_2018 <- rename_columns(date = 2018, yearname = "_2018")
+snap_2019 <- rename_columns(date = 2019, yearname = "_2019")
+snap_2020 <- rename_columns(date = 2020, yearname = "_2020")
+
+snap_year <- bind_cols(snap_2010, 
+                       snap_2011, 
+                       snap_2012, 
+                       snap_2013, 
+                       snap_2014, 
+                       snap_2015, 
+                       snap_2016, 
+                       snap_2017, 
+                       snap_2018, 
+                       snap_2019, 
+                       snap_2020) %>%
+  rename(state = state_pc_2010) %>%
+  group_by(state) %>%
+  select(-starts_with("state_pc"), 
+         -starts_with("year"))
+
 ```
 
-The SNAP dataframeis a state-level dataframe of monthly reported data of SNAP policy relevant information by each state from 1996 to 2019. It supposed to have 51*12*10 = 6120 observations, but since we filter out data before year 2010 as well as states' data with too many missing values, the actual observation number is smaller.
+The SNAP dataframe is a state-level dataframe of monthly reported data of SNAP policy relevant information by each state from 1996 to 2019. It supposed to have 51*12*10 = 6120 observations, but since we filter out data before year 2010 as well as states' data with too many missing values, the actual observation number is smaller.
 
+Through looking at the documentation for the SNAP policy data, we learned that some variables were systematically missing. There were a few variables (transben, call_any, faceini, facerec, and the recertification variables) that had missing data for multiple years. Because the variables were missing not at random, we decided to remove them from our analysis. The rest of the variables were missing data from 2020, which is likely due to lack of data collection during the pandemic. NA observations were removed because imputation would likely not be able to reflect policy changes made during the pandemic. 
 
+After dealing with the missing values, we grouped the dataset by year and state, and took the mode of each observation. The data was categorical, so mode was used to capture the most frequent instance of each policy during each year. 
 
 #### County Health Rankings
 
@@ -169,8 +233,6 @@ chr_small <-
     fips = as.numeric(fips_5_digit)) |> 
   select(!c(state_fips, county_fips, fips_5_digit)) |> 
   mutate_if(is.numeric, ~ round(., digits = 4))
-  
-
 
 
 ```
@@ -180,10 +242,38 @@ chr_small <-
 
 ```{r}
 
-# merging atlas and 
+# merging atlas and CHR
+food_atlas <- food_atlas %>%
+  rename(fips = FIPS)
 
+anti_join(food_atlas, chr_small, by = "fips")
+anti_join(chr_small, food_atlas)
 
 ```
+The anti joins above show the counties in each dataset that are not represented in the other. All of these counties were either changed or deleted in the time that these data were collected. In order to be able to merge our datasets, we will remove these counties from the data. 
 
+```{r}
 
+food_atlas <- food_atlas %>%
+  filter(fips != 2261, 
+         fips != 2270, 
+         fips != 46113, 
+         fips != 51515)
+chr_small <- chr_small %>%
+  filter(fips != 2063,
+         fips != 2066, 
+         fips != 2158, 
+         fips != 46102)
 
+# Checking that there are no other unmatched observations 
+anti_join(food_atlas, chr_small, by = "fips") # success!
+anti_join(chr_small, food_atlas, by = "fips") # success!
+
+atlas_chr <- full_join(food_atlas, chr_small, by = "fips") 
+
+snap_year <- snap_year %>%
+  rename(State = state)
+
+atlas_chr_snap <- left_join(atlas_chr, snap_year)
+
+```

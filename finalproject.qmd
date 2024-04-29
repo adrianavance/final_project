@@ -141,6 +141,8 @@ The SNAP dataframeis a state-level dataframe of monthly reported data of SNAP po
 
 glimpse(county_health_rankings)
 
+# selecting and renaming key variables. adding _chr at end so we know which variables came from CHR in merged dataset
+
 chr_small <- 
   county_health_rankings |> 
   select(state_fips = 'State FIPS Code',
@@ -148,20 +150,20 @@ chr_small <-
          state = 'State Abbreviation',
          fips_5_digit = '5-digit FIPS Code',
          county = 'Name',
-         food_env_index = 'Food Environment Index raw value',
-         exercise_access = 'Access to Exercise Opportunities raw value',
-         child_poverty = 'Children in Poverty raw value',
-         income_inequality = 'Income Inequality raw value',
-         air_pollution = 'Air Pollution - Particulate Matter raw value',
-         limited_healthy_food = 'Limited Access to Healthy Foods raw value',
-         uninsured_adults = 'Uninsured Adults raw value',
-         uninsured_children = 'Uninsured Children raw value',
-         childcare_cost_burden = 'Child Care Cost Burden raw value',
-         traffic_volume = 'Traffic Volume raw value',
-         rural = '% Rural raw value', 
-         hs_grad_rate = 'High School Graduation raw value',
-         food_insecurity = 'Food Insecurity raw value',
-         life_expectancy = 'Life Expectancy raw value') |> 
+         food_env_index_chr = 'Food Environment Index raw value',
+         exercise_access_chr = 'Access to Exercise Opportunities raw value',
+         child_poverty_chr = 'Children in Poverty raw value',
+         income_inequality_chr = 'Income Inequality raw value',
+         air_pollution_chr = 'Air Pollution - Particulate Matter raw value',
+         limited_healthy_food_chr = 'Limited Access to Healthy Foods raw value',
+         uninsured_adults_chr = 'Uninsured Adults raw value',
+         uninsured_children_chr = 'Uninsured Children raw value',
+         childcare_cost_burden_chr = 'Child Care Cost Burden raw value',
+         traffic_volume_chr = 'Traffic Volume raw value',
+         rural_chr = '% Rural raw value', 
+         hs_grad_rate_chr = 'High School Graduation raw value',
+         food_insecurity_chr = 'Food Insecurity raw value',
+         life_expectancy_chr = 'Life Expectancy raw value') |> 
   filter(county_fips!="000") |> 
   mutate(
     fips = as.numeric(fips_5_digit)) |> 
@@ -172,4 +174,16 @@ chr_small <-
 
 
 ```
+
+
+### Merging Data
+
+```{r}
+
+# merging atlas and 
+
+
+```
+
+
 

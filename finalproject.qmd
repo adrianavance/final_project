@@ -12,6 +12,8 @@ library(readxl)
 library(tidyr)
 library(lubridate)
 library(DescTools)
+library(tidymodels)
+library(gridExtra)
 ```
 
 ### Loading, Cleaning and Merging Datasets
@@ -139,7 +141,6 @@ rename_columns <- function(date, yearname){
   summarize_all(list(avg = Mode())) %>%
   select(-state_fips_avg, -statename_avg, -yearmonth_avg) %>%
   filter(year == date) 
-
   
 names_date <- names(snap_date)
 new_date <- paste(names_date, yearname, sep = "")
@@ -200,7 +201,6 @@ After dealing with the missing values, we grouped the dataset by year and state,
 
 #### County Health Rankings
 
-
 ```{r}
 
 glimpse(county_health_rankings)
@@ -236,7 +236,6 @@ chr_small <-
 
 
 ```
-
 
 ### Merging Data
 
@@ -277,3 +276,215 @@ snap_year <- snap_year %>%
 atlas_chr_snap <- left_join(atlas_chr, snap_year)
 
 ```
+
+### Predictive Model
+
+#### Problem Formulation
+
+This predictive model aims to predict the food security and health conditions in the county level, through the data of access to healthy food. 
+
+#### Split data into training and testing data
+
+```{r}
+split <- initial_split(data = atlas_chr_snap, prop = 0.75)
+
+training <- training(split) 
+testing <- testing(split)
+
+```
+
+#### Exploratory Data Analysis
+
+```{r}
+
+training %>%
+  ungroup() %>%
+  reframe(
+    mean = mean(POVRATE15),
+    median = median(POVRATE15),
+    range = range(POVRATE15),
+    qs = quantile(POVRATE15, c(0.25, 0.75)), prob = c(0.25, 0.75)
+    )
+
+training %>%
+  ggplot(mapping = aes(x = POVRATE15, y = food_insecurity_chr, color = POVRATE15)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(title = "Relationship between poverty rate and food insecurity value",
+       x = "Poverty rate",
+       y = "Food insecurity value") + 
+  theme_minimal()
+
+```
+The line chart shows a general linear relationship between the poverty rate of each county and the food insecurity value. As the poverty rate increases, the food insecurity value also increases. 
+
+We also think the food security is closely connected to the programs and policies participants since the purposes of these benefits are to help people who are in danger of food insecurity due to various reasons. Thus, we selected the program participant proportional variables and observe the density distribution of them and of food security value. 
+
+```{r}
+
+program_participants <- training %>%
+  select(
+    fips,
+    PCT_SNAP17, 
+    PCT_NSLP17, 
+    PCT_SBP17, 
+    PCT_SFSP17, 
+    PCT_WIC17, 
+    PCT_WICINFANTCHILD16,
+    PCT_WICWOMEN16,
+    food_insecurity_chr
+  )
+
+# Density distribution of food insecurity value among all observations
+program_participants %>%
+  ggplot() +
+  geom_density(mapping = aes(x = food_insecurity_chr), color = "indianred") +
+  labs(title = "Density plot for food insecurity score") +
+  theme_minimal()
+
+# Density distribution of program participant proportions among all observations
+
+p1 <- program_participants %>%
+  ggplot() +
+  geom_density(mapping = aes(x = PCT_WIC17), color = "purple") +
+  labs(title = "WIC") +
+  theme_minimal()
+
+p2 <- program_participants %>%
+  ggplot() +
+  geom_density(mapping = aes(x = PCT_WICINFANTCHILD16), color = "orange") +
+  labs(title = "WIC infant and children") +
+  theme_minimal()
+
+p3 <- program_participants %>%
+  ggplot() +
+  geom_density(mapping = aes(x = PCT_WICWOMEN16), color = "olivedrab") +
+  labs(title = "WIC women") +
+  theme_minimal()
+ 
+p4 <- program_participants %>%
+  ggplot() +
+  geom_density(mapping = aes(x = PCT_SNAP17), color = "gold") +
+  labs(title = "SNAP") +
+  theme_minimal()
+
+p5 <- program_participants %>%
+  ggplot() +
+  geom_density(mapping = aes(x = PCT_NSLP17), color = "dodgerblue") +
+  labs(title = "National School Lunch Program") +
+  theme_minimal()
+
+p6 <- program_participants %>%
+  ggplot() +
+  geom_density(mapping = aes(x = PCT_SBP17), color = "green") +
+  labs(title = "School Breakfast Program") +
+  theme_minimal()
+
+grid.arrange(p1, p2, p3, p4, p5, p6, ncol = 3)
+
+```
+The density distribution of the program participation proportions do not show the similar trends as we expected before, so we will do the correlation test to determine wether these variables will be included as predictors. 
+
+#### Feature Selection
+```{r}
+
+correlation <- training %>%
+  select(where(is.numeric)) %>%
+  cor()
+
+# Only keep variables have correlation with the food insecurity variable. 
+correlation_df <- as.data.frame(correlation) %>%
+  select(food_insecurity_chr) %>%
+  na.omit() %>% # filter out variables that don't have correlation with y
+  filter(food_insecurity_chr != 0) %>% # filter out those correlations equal 0
+  rownames_to_column() %>%
+  pivot_wider(
+    names_from = rowname,
+    values_from = food_insecurity_chr
+  )
+
+# Intersect correlation data frame with training data, so only variables show in both data frame will be left. 
+selected_variables <- intersect(names(correlation_df), names(training)) 
+
+# Filter out variables that are not in intersection results as the last step assigned to
+sub_training <- training[selected_variables]
+
+```
+By doing this, we narrow down the number of predictors into 362 variables instead of 604 variables in the original training data. 
+
+#### Set up Resampling
+
+```{r}
+sub_folds <- vfold_cv(data = sub_training, v = 10, repeats = 10)
+
+```
+
+#### Lasso Regression
+
+```{r}
+
+lasso_rec <- recipe(food_insecurity_chr ~ ., data = sub_training) %>%
+  add_role(fips, new_role = "id") %>%
+  step_rm(has_role("id")) %>%
+  step_nzv(all_predictors()) %>%
+  step_normalize(all_numeric_predictors()) %>% 
+  step_other(all_nominal(), threshold = 0.05)
+  
+lasso_mod <- linear_reg(penalty = tune(), mixture = 1) %>%
+  set_mode(mode = "regression") %>%
+  set_engine(engine = "glmnet")
+  
+lasso_wf <- workflow() %>%
+  add_recipe(recipe = lasso_rec) %>%
+  add_model(spec = lasso_mod)
+
+penalty_grid <- grid_regular(penalty(), levels = 20)
+
+lasso_res <- lasso_wf %>%
+  tune_grid(
+    resamples = sub_folds,
+    grid = penalty_grid,
+    metrics = metric_set(rmse),
+    control = control_grid(verbose = FALSE, save_pred = TRUE)
+  )
+
+lasso_res %>%
+  collect_metrics()
+
+```
+
+#### Random Forest
+
+```{r}
+
+rf_rec <- recipe(food_insecurity_chr ~ ., sub_training) %>%
+  add_role(fips, new_role = "id") %>%
+  step_rm(has_role("id")) %>%
+  step_nzv(all_predictors()) %>%
+  step_normalize(all_numeric_predictors()) %>%
+  step_other(all_nominal(), threshold = 0.05)
+
+rf_mod <- rand_forest(
+  trees = 200,
+  mtry = 14,
+  min_n = 5
+) %>%
+  set_mode(mode = "regression") %>%
+  set_engine(
+    engine = "ranger", 
+    importance = "impurity",
+    num.threads = 4
+  )
+
+rf_wf <- workflow() %>%
+  add_recipe(rf_rec) %>%
+  add_model(rf_mod)
+
+rf_res <- rf_wf %>%
+  fit_resamples(resamples = sub_folds)
+
+rf_res %>%
+  collect_metrics() 
+
+```
+

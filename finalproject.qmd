@@ -227,7 +227,14 @@ chr_small <-
          rural_chr = '% Rural raw value', 
          hs_grad_rate_chr = 'High School Graduation raw value',
          food_insecurity_chr = 'Food Insecurity raw value',
-         life_expectancy_chr = 'Life Expectancy raw value') |> 
+         life_expectancy_chr = 'Life Expectancy raw value',
+         pct_under18_chr = '% Below 18 Years of Age raw value',
+         housing_cost_burden_chr = 'Severe Housing Cost Burden raw value',
+         residential_segregation_chr = 'Residential Segregation - Black/White raw value',
+         pct_NH_Black_chr = '% Non-Hispanic Black raw value',
+         pct_Hispanic_chr = '% Hispanic raw value',
+         pct_NH_white_chr = '% Non-Hispanic White raw value',
+         pct_not_english_prof_chr = '% Not Proficient in English raw value') |> 
   filter(county_fips!="000") |> 
   mutate(
     fips = as.numeric(fips_5_digit)) |> 

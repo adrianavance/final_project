@@ -1,7 +1,11 @@
 ---
-  title: "Final Project"
+title: "Final Project"
 author: "Jane Finocharo, Adriana Vance, and Ruining Zheng"
-format: html
+format:
+  html:
+    embed-resources: true
+    code-fold: true
+date: today
 editor: visual
 ---
   
@@ -272,6 +276,10 @@ snap_year <- snap_year %>%
 
 atlas_chr_snap <- left_join(atlas_chr, snap_year)
 
+# We also would like to filter out variables that directly indicate food security/insecurity value in other data frames besides the CHR data.
+atlas_chr_snap <- atlas_chr_snap %>%
+  select(-contains(c("FOODSEC", "FOODINSEC")))
+
 ```
 
 ### Predictive Model
@@ -280,9 +288,11 @@ atlas_chr_snap <- left_join(atlas_chr, snap_year)
 
 This predictive model aims to predict the food security and health conditions in the county level, through the data of access to healthy food. 
 
-#### Split data into training and testing data
+#### Split Data into Training and Testing Data
 
 ```{r}
+set.seed(20240430)
+
 split <- initial_split(data = atlas_chr_snap, prop = 0.75)
 
 training <- training(split) 
@@ -299,8 +309,7 @@ training %>%
   reframe(
     mean = mean(POVRATE15),
     median = median(POVRATE15),
-    range = range(POVRATE15),
-    qs = quantile(POVRATE15, c(0.25, 0.75)), prob = c(0.25, 0.75)
+    range = range(POVRATE15)
     )
 
 training %>%
@@ -336,7 +345,8 @@ program_participants <- training %>%
 program_participants %>%
   ggplot() +
   geom_density(mapping = aes(x = food_insecurity_chr), color = "indianred") +
-  labs(title = "Density plot for food insecurity score") +
+  labs(title = "Density plot for food insecurity score",
+       x = "Score") +
   theme_minimal()
 
 # Density distribution of program participant proportions among all observations
@@ -344,37 +354,43 @@ program_participants %>%
 p1 <- program_participants %>%
   ggplot() +
   geom_density(mapping = aes(x = PCT_WIC17), color = "purple") +
-  labs(title = "WIC") +
+  labs(title = "2017 WIC",
+       x = "Population proportion") +
   theme_minimal()
 
 p2 <- program_participants %>%
   ggplot() +
   geom_density(mapping = aes(x = PCT_WICINFANTCHILD16), color = "orange") +
-  labs(title = "WIC infant and children") +
+  labs(title = "2016 WIC infant and children",
+       x = "Infant & children proportion") +
   theme_minimal()
 
 p3 <- program_participants %>%
   ggplot() +
   geom_density(mapping = aes(x = PCT_WICWOMEN16), color = "olivedrab") +
-  labs(title = "WIC women") +
+  labs(title = "2016 WIC women",
+       x = "Women proportion") +
   theme_minimal()
  
 p4 <- program_participants %>%
   ggplot() +
   geom_density(mapping = aes(x = PCT_SNAP17), color = "gold") +
-  labs(title = "SNAP") +
+  labs(title = "2017 SNAP",
+       x = "Population proportion") +
   theme_minimal()
 
 p5 <- program_participants %>%
   ggplot() +
   geom_density(mapping = aes(x = PCT_NSLP17), color = "dodgerblue") +
-  labs(title = "National School Lunch Program") +
+  labs(title = "2017 National School Lunch Program",
+       x = "Children proportion") +
   theme_minimal()
 
 p6 <- program_participants %>%
   ggplot() +
   geom_density(mapping = aes(x = PCT_SBP17), color = "green") +
-  labs(title = "School Breakfast Program") +
+  labs(title = "2017 School Breakfast Program",
+       x = "Children proportion") +
   theme_minimal()
 
 grid.arrange(p1, p2, p3, p4, p5, p6, ncol = 3)
@@ -409,40 +425,61 @@ sub_training <- training[selected_variables]
 ```
 By doing this, we narrow down the number of predictors into 362 variables instead of 604 variables in the original training data. 
 
-### Visualizing Correlations 
+#### Visualizing Correlations 
 ```{r}
 
 c1 <- training %>%
   ggplot(mapping = aes(x = food_insecurity_chr, y = SNAPSPTH17)) + 
   geom_point() + 
-  geom_smooth()
+  geom_smooth() +
+  labs(title = "2017 SNAP-authorized stores",
+       x = "Insecurity value",
+       y = "Stores/1,000 pop") +
+  theme_minimal()
 
 c2 <- training %>%
   ggplot(mapping = aes(x = food_insecurity_chr, y = SNAPSPTH12)) + 
   geom_point() + 
-  geom_smooth()
+  geom_smooth() +
+  labs(title = "2012 SNAP-authorized stores",
+       x = "Insecurity value",
+       y = "Stores/1,000 pop") +
+  theme_minimal()
 
 c3 <- training %>%
   ggplot(mapping = aes(x = food_insecurity_chr, y = LACCESS_POP10)) + 
   geom_point() + 
-  geom_smooth()
+  geom_smooth() +
+  labs(title = "2010 Population with low access to store",
+       x = "Insecurity value",
+       y = "Population count") +
+  theme_minimal()
 
 c4 <- training %>%
   ggplot(mapping = aes(x = food_insecurity_chr, y = GROC16)) + 
   geom_point() + 
-  geom_smooth()
+  geom_smooth() +
+  labs(title = "2016 Grocery stores",
+       x = "Insecurity value",
+       y = "Store count") +
+  theme_minimal()
 
 c5 <- training %>%
   ggplot(mapping = aes(x = food_insecurity_chr, y = SUPERCPTH16)) + 
   geom_point() + 
-  geom_smooth()
+  geom_smooth() +
+  labs(title = "2016 Supercenters & club stores/1,000 pop",
+       x = "Insecurity value",
+       y = "Stores/1,000 pop") +
+  theme_minimal()
 
-grid.arrange(c1, c2, c3, c4, c5, ncol = 3)
+grid.arrange(c1, c2, c3, c4, c5, ncol = 2)
 
 sub_training %>%
   mutate(log_pop = log(Population_Estimate_2018)) %>%
   ggplot(mapping = aes(x = log_pop)) +
-  geom_density()
+  geom_density() +
+  theme_minimal()
 
 ```
 
@@ -486,6 +523,9 @@ lasso_res <- lasso_wf %>%
 lasso_res %>%
   collect_metrics()
 
+best_lasso <- lasso_res %>%
+  select_best(metric = "rmse")
+
 ```
 
 #### Random Forest
@@ -520,6 +560,27 @@ rf_res <- rf_wf %>%
 
 rf_res %>%
   collect_metrics() 
+
+best_rf <- rf_res %>%
+  select_best(metric = "rmse")
+
+```
+
+#### Expand the Model Fit
+
+```{r}
+
+# We have selected the best LASSO model above, and assigned it to best_mod
+
+final_fit <- finalize_workflow(lasso_wf, best_lasso) %>% 
+  last_fit(split)
+
+final_fit %>%
+  extract_fit_parsnip() %>%
+  tidy()
+
+final_fit %>%
+  collect_metrics()
 
 ```
 

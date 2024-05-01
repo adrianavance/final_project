@@ -390,7 +390,7 @@ p6 <- program_participants %>%
 grid.arrange(p1, p2, p3, p4, p5, p6, ncol = 3)
 
 ```
-The density distribution of the program participation proportions do not show the similar trends as we expected before, so we will do the correlation test to determine wether these variables will be included as predictors. 
+The density distribution of the program participation proportions do not show the similar trends as we expected before, so we will do the correlation test to determine whether these variables will be included as predictors. 
 
 #### Feature Selection
 ```{r}
@@ -402,7 +402,6 @@ correlation <- training %>%
 # Only keep variables have correlation with the food insecurity variable. 
 correlation_df <- as.data.frame(correlation) %>%
   select(food_insecurity_chr) %>%
-  na.omit() %>% # filter out variables that don't have correlation with y
   filter(food_insecurity_chr != 0) %>% # filter out those correlations equal 0
   rownames_to_column() %>%
   pivot_wider(
@@ -412,6 +411,7 @@ correlation_df <- as.data.frame(correlation) %>%
 
 # Intersect correlation data frame with training data, so only variables show in both data frame will be left. 
 selected_variables <- intersect(names(correlation_df), names(training)) 
+as.data.frame(selected_variables)
 
 # Filter out variables that are not in intersection results as the last step assigned to
 sub_training <- training[selected_variables]
@@ -434,6 +434,7 @@ lasso_rec <- recipe(food_insecurity_chr ~ ., data = sub_training) %>%
   add_role(fips, new_role = "id") %>%
   step_rm(has_role("id")) %>%
   step_nzv(all_predictors()) %>%
+  step_impute_mean(all_predictors()) %>%
   step_normalize(all_numeric_predictors()) %>% 
   step_other(all_nominal(), threshold = 0.05)
   

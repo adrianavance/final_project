@@ -125,29 +125,21 @@ snap <- snap %>%
   mutate(yearmonth = ym(yearmonth)) %>%
   mutate(year = year(yearmonth)) # Since the CHR data only contains year data, we also mutate a new column for year in SNAP. 
 
-# Many rows have a large proportion of missing data, which add noise to the data. 
-snap_na <- snap %>%
-  mutate(na_count = rowSums(is.na(.))) %>%
-  filter(na_count < 20) # We filter out rows with too many NA values (more than half of the variables except identifying variables)
-
 snap_natest <- snap %>%
-  select(-transben, -call_any, -faceini, -facerec, -(starts_with("cert"))) %>%
-  na.omit()
+  select(-transben, -call_any, -faceini, -facerec, -(starts_with("cert"))) %>% # Removes variables with NA values for multiple years
+  na.omit() # Removes any NA observations left, mostly in 2020 due to pandemic 
 
-rename_columns <- function(date, yearname){
-
-  snap_date <- snap_natest %>%
-  group_by(state_pc, year) %>%
-  summarize_all(list(avg = Mode())) %>%
-  select(-state_fips_avg, -statename_avg, -yearmonth_avg) %>%
-  filter(year == date) 
-  
-names_date <- names(snap_date)
-new_date <- paste(names_date, yearname, sep = "")
-names(snap_date) <- new_date
-
-return(snap_date)
-}
+# Function to change year-month observations into year observations, taking the most common value 
+#' Year-Month -> Year
+#'
+#' @param date # This is actually for the year of the dataset. Used to filter dataset from years 2010-2020
+#' @param yearname # This is also the year, but must be written in quotes. Ex: yearname = "2016" 
+#'
+#' @return # Returns a dataframe of a specific year of the SNAP data. Each observation is the mode of year-month observations in the original data. 
+#' @export
+#'
+#' @examples
+#' snap_2010 <- rename_columns(date = 2010, yearname = "_2010")
 
 rename_columns <- function(date, yearname){
   snap_date <- snap_natest %>%
@@ -203,8 +195,6 @@ After dealing with the missing values, we grouped the dataset by year and state,
 
 ```{r}
 
-glimpse(county_health_rankings)
-
 # selecting and renaming key variables. adding _chr at end so we know which variables came from CHR in merged dataset
 
 chr_small <- 
@@ -241,7 +231,7 @@ chr_small <-
   select(!c(state_fips, county_fips, fips_5_digit)) |> 
   mutate_if(is.numeric, ~ round(., digits = 4))
 
-
+glimpse(chr_small)
 ```
 
 ### Merging Data
@@ -390,7 +380,7 @@ p6 <- program_participants %>%
 grid.arrange(p1, p2, p3, p4, p5, p6, ncol = 3)
 
 ```
-The density distribution of the program participation proportions do not show the similar trends as we expected before, so we will do the correlation test to determine wether these variables will be included as predictors. 
+The density distribution of the program participation proportions do not show the similar trends as we expected before, so we will do the correlation test to determine whether these variables will be included as predictors. 
 
 #### Feature Selection
 ```{r}
@@ -402,7 +392,6 @@ correlation <- training %>%
 # Only keep variables have correlation with the food insecurity variable. 
 correlation_df <- as.data.frame(correlation) %>%
   select(food_insecurity_chr) %>%
-  na.omit() %>% # filter out variables that don't have correlation with y
   filter(food_insecurity_chr != 0) %>% # filter out those correlations equal 0
   rownames_to_column() %>%
   pivot_wider(
@@ -412,6 +401,7 @@ correlation_df <- as.data.frame(correlation) %>%
 
 # Intersect correlation data frame with training data, so only variables show in both data frame will be left. 
 selected_variables <- intersect(names(correlation_df), names(training)) 
+as.data.frame(selected_variables)
 
 # Filter out variables that are not in intersection results as the last step assigned to
 sub_training <- training[selected_variables]
@@ -419,10 +409,47 @@ sub_training <- training[selected_variables]
 ```
 By doing this, we narrow down the number of predictors into 362 variables instead of 604 variables in the original training data. 
 
+### Visualizing Correlations 
+```{r}
+
+c1 <- training %>%
+  ggplot(mapping = aes(x = food_insecurity_chr, y = SNAPSPTH17)) + 
+  geom_point() + 
+  geom_smooth()
+
+c2 <- training %>%
+  ggplot(mapping = aes(x = food_insecurity_chr, y = SNAPSPTH12)) + 
+  geom_point() + 
+  geom_smooth()
+
+c3 <- training %>%
+  ggplot(mapping = aes(x = food_insecurity_chr, y = LACCESS_POP10)) + 
+  geom_point() + 
+  geom_smooth()
+
+c4 <- training %>%
+  ggplot(mapping = aes(x = food_insecurity_chr, y = GROC16)) + 
+  geom_point() + 
+  geom_smooth()
+
+c5 <- training %>%
+  ggplot(mapping = aes(x = food_insecurity_chr, y = SUPERCPTH16)) + 
+  geom_point() + 
+  geom_smooth()
+
+grid.arrange(c1, c2, c3, c4, c5, ncol = 3)
+
+sub_training %>%
+  mutate(log_pop = log(Population_Estimate_2018)) %>%
+  ggplot(mapping = aes(x = log_pop)) +
+  geom_density()
+
+```
+
 #### Set up Resampling
 
 ```{r}
-sub_folds <- vfold_cv(data = sub_training, v = 10, repeats = 10)
+sub_folds <- vfold_cv(data = sub_training, v = 10, repeats = 10, strata = Population_Estimate_2018)
 
 ```
 
@@ -434,6 +461,7 @@ lasso_rec <- recipe(food_insecurity_chr ~ ., data = sub_training) %>%
   add_role(fips, new_role = "id") %>%
   step_rm(has_role("id")) %>%
   step_nzv(all_predictors()) %>%
+  step_impute_mean(all_predictors()) %>%
   step_normalize(all_numeric_predictors()) %>% 
   step_other(all_nominal(), threshold = 0.05)
   

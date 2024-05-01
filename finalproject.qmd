@@ -309,8 +309,7 @@ training %>%
   reframe(
     mean = mean(POVRATE15),
     median = median(POVRATE15),
-    range = range(POVRATE15),
-    qs = quantile(POVRATE15, c(0.25, 0.75), na.rm = TRUE), prob = c(0.25, 0.75)
+    range = range(POVRATE15)
     )
 
 training %>%

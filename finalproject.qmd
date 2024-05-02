@@ -18,6 +18,7 @@ library(lubridate)
 library(DescTools)
 library(tidymodels)
 library(gridExtra)
+library(vip)
 ```
 
 ### Loading, Cleaning and Merging Datasets
@@ -305,7 +306,6 @@ testing <- testing(split)
 ```{r}
 
 training %>%
-  ungroup() %>%
   reframe(
     mean = mean(POVRATE15),
     median = median(POVRATE15),
@@ -526,11 +526,14 @@ lasso_res %>%
 best_lasso <- lasso_res %>%
   select_best(metric = "rmse")
 
+
 ```
 
 #### Random Forest
 
 ```{r}
+
+set.seed(2024)
 
 rf_rec <- recipe(food_insecurity_chr ~ ., sub_training) %>%
   add_role(fips, new_role = "id") %>%
@@ -564,13 +567,18 @@ rf_res %>%
 best_rf <- rf_res %>%
   select_best(metric = "rmse")
 
+final_fit_rf <- finalize_workflow(rf_wf, best_rf) %>% 
+  last_fit(split)
+
+
+
 ```
 
 #### Expand the Model Fit
 
 ```{r}
 
-# We have selected the best LASSO model above, and assigned it to best_mod
+# We have selected the best LASSO model above, and assigned it to best_lasso
 
 final_fit <- finalize_workflow(lasso_wf, best_lasso) %>% 
   last_fit(split)
@@ -582,5 +590,98 @@ final_fit %>%
 final_fit %>%
   collect_metrics()
 
+# Show Predictions
+
+# Extract the workflow from final_fit
+final_workflow <- extract_workflow(final_fit)
+
+# Make predictions using the extracted workflow
+final_predictions <- predict(final_workflow, new_data = testing)
+
+final_predictions <- cbind(final_predictions, testing) %>%
+  select(.pred, "food_insecurity_chr")
+
+final_rmse <- sqrt(mean((final_predictions$food_insecurity_chr - final_predictions$.pred)^2))
+print(final_rmse)
+
+
 ```
 
+### Simulating Policy Changes
+Lastly, we seek to understand how certain policy changes may affect food insecurity levels in counties. We developed a simple microsimulation model with some of the more "important" variables in our data to simulate how a change in these policies could increase or decrease food insecurity in select counties. 
+
+```{r}
+final_fit_rf |>
+  extract_fit_parsnip() |>
+  vip(num_features = 20) %>%
+  .$data |>
+  mutate(
+    Importance = Importance / max(Importance),
+    Variable = fct_reorder(.x = Importance, .f = Variable)
+  ) |>
+  ggplot(aes(Importance, Variable)) +
+  geom_col()
+
+```
+Using a variable importance plot from our random forest model, we can see which predictors in our model are the most useful for predicting rates of food insecurity in counties in our dataset. 
+Understanding which predictors are most important for predicting food insecurity can inform policy change. For example, "PCT_SBP12" and "PCT_SBP17" represent the percentage of School Breakfast Program participants at the state level. "PCT_WICWOMEN16" and "PCT_WICWOMEN16" represents the percentage of women participating in WIC in 2014 and 2016. Other important predictors are childhood poverty, rates of diabetes, and SNAP participation. Overall, it looks like county participation rates in state-level programs are more important predictors than county-level characteristics.
+
+For simplicity, we will apply a calculator to one of the most important predictors, participation of women in WIC. Modeling increased participation in the WIC program can give us an idea of how a change to this policy may affect food insecurity rates in counties in the United States. 
+
+### Creating a Calculator to Change WIC Policy
+```{r}
+
+WIC_participation_change <- function(child_pov, wic_part, wic_part_change) {
+  
+  change <- dplyr::case_when(
+    child_pov == 1 ~ wic_part + (wic_part_change),  # Increase by 20 for counties with persistent child poverty
+    
+    TRUE ~ wic_part  # Retain the original value for counties without persistent child poverty
+  )
+  return(change)
+}
+
+
+WIC_10 <- atlas_chr_snap %>%
+  mutate(PCT_WICWOMEN16 = 
+           WIC_participation_change(
+             child_pov = PERCHLDPOV10, 
+             wic_part = PCT_WICWOMEN16, 
+             wic_part_change = 10))  %>%
+  select(-food_insecurity_chr)
+
+
+# Extract the workflow from final_fit
+rf_workflow <- extract_workflow(final_fit_rf)
+
+# Predict food insecurity using the random forest model with the new WIC participation variable
+predicted_food_insecurity <- predict(rf_workflow, new_data = WIC_10)
+
+# Calculate the change in food insecurity
+change_in_food_insecurity <-  predicted_food_insecurity - atlas_chr_snap$food_insecurity_chr
+
+change_in_food_insecurity$.pred %>%
+  summary()
+
+
+```
+
+```{r}
+# Predicting food insecurity with a minus 10 percent WIC participation
+WIC_minus_10 <- atlas_chr_snap %>%
+  mutate(PCT_WICWOMEN16 = 
+           WIC_participation_change(
+             child_pov = PERCHLDPOV10, 
+             wic_part = PCT_WICWOMEN16, 
+             wic_part_change = -10
+             ))  %>%
+  select(-food_insecurity_chr)
+
+food_insecurity_minus_10 <- predict(rf_workflow, new_data = WIC_minus_10)
+
+change_minus_10 <- food_insecurity_minus_10 - atlas_chr_snap$food_insecurity_chr
+
+change_minus_10$.pred %>%
+  summary()
+
+```

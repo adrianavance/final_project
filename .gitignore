@@ -1,7 +1,7 @@
 
 # Other files
 .DS_Store
-data/
+
 *.Rproj
 finalproject.html
 

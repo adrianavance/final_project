@@ -663,6 +663,65 @@ change_in_food_insecurity <-  predicted_food_insecurity - atlas_chr_snap$food_in
 change_in_food_insecurity$.pred %>%
   summary()
 
+```
+
+### Distributional Analysis
+```{r}
+plus_10_pred <- cbind(predicted_food_insecurity, atlas_chr_snap$food_insecurity_chr, atlas_chr_snap)
+
+dist_table <- plus_10_pred %>%
+  mutate(pop_decile = ntile(Population_Estimate_2018, n = 10)) %>%
+  group_by(pop_decile) %>%
+  summarize(
+    min_pop = min(Population_Estimate_2018),
+    max_pop = max(Population_Estimate_2018),
+    mean_food_insecurity = mean(.pred)
+  )
+
+dist_table
+
+
+participation_increase <- dist_table |>
+  ggplot(aes(pop_decile, mean_food_insecurity)) +
+  geom_col() +
+  scale_x_continuous(breaks = 1:10) +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.1))
+  ) +
+  labs(
+    title = "Distribution of Food Insecurity by Population",
+    subtitle = "Increase in WIC Participation",
+    x = "Familiy Income Decile",
+    y = "Average Benefit"
+  )
+
+dist_table_original <- plus_10_pred %>%
+  mutate(pop_decile = ntile(Population_Estimate_2018, n = 10)) %>%
+  group_by(pop_decile) %>%
+  summarize(
+    min_pop = min(Population_Estimate_2018),
+    max_pop = max(Population_Estimate_2018),
+    mean_food_insecurity = mean(atlas_chr_snap$food_insecurity_chr)
+  )
+
+dist_table_original
+
+participation_original <- dist_table_original |>
+  ggplot(aes(pop_decile, mean_food_insecurity)) +
+  geom_col() +
+  scale_x_continuous(breaks = 1:10) +
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.1))
+  ) +
+  labs(
+    title = "Distribution of Food Insecurity by Population",
+    subtitle = "Increase in WIC Participation",
+    x = "Familiy Income Decile",
+    y = "Average Benefit"
+  )
+
+participation_increase
+participation_original
 
 ```
 

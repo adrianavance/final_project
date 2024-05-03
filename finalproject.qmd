@@ -9,7 +9,13 @@ date: today
 editor: visual
 ---
 
-## Load Libraries
+## Background
+
+
+
+## Set Up
+
+### Load Libraries
 
 ```{r}
 library(tidyverse)
@@ -25,9 +31,7 @@ library(glmnet)
 
 ### Loading, Cleaning and Merging Datasets
 
-We might want to find an easier way to load in the data, but for now I just created a data folder in my directory, and named the files CHR.csv, FEA.csv, FEA_supplement.csv, and snap.xlsx
-
-How to access the data:
+First, create a folder in your directory called "data". Then follow the instructions below to access the datasets and save them with the correct names in the data folder:
 
 \- **County Health Rankings 2024**: At [this link](https://www.countyhealthrankings.org/health-data/methodology-and-sources/data-documentation), click "2024 CHR CSV Analytic Data". Rename file "CHR_2024.csv"
 
@@ -320,6 +324,8 @@ testing <- testing(split)
 ```{r}
 
 training %>%
+<<<<<<< HEAD
+=======
   ungroup() %>%
   reframe(
     mean = mean(POVRATE15),
@@ -328,6 +334,7 @@ training %>%
     )
 
 training %>%
+>>>>>>> b134156d13e5759d7828f654a7e768ce86fb3335
   ggplot(mapping = aes(x = POVRATE15, y = food_insecurity_chr, color = POVRATE15)) +
   geom_point() +
   geom_smooth(method = "lm", se = TRUE) +

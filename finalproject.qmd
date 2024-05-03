@@ -324,8 +324,6 @@ testing <- testing(split)
 ```{r}
 
 training %>%
-<<<<<<< HEAD
-=======
   ungroup() %>%
   reframe(
     mean = mean(POVRATE15),
@@ -334,7 +332,6 @@ training %>%
     )
 
 training %>%
->>>>>>> b134156d13e5759d7828f654a7e768ce86fb3335
   ggplot(mapping = aes(x = POVRATE15, y = food_insecurity_chr, color = POVRATE15)) +
   geom_point() +
   geom_smooth(method = "lm", se = TRUE) +

@@ -10,11 +10,20 @@ format:
     code-fold: true
 date: today
 editor: visual
+bibliography: references.bib
 ---
 
-## Background
+## Introduction
 
+In 2021, approximately 10% of American households experienced food insecurity - a lack of access to enough food for a healthy, active life - at some point during the year [@rabbitt]. The percentage of people experiencing food security varies significantly between counties, ranging from 2% to 26% [@hake2023]. Understanding the key predictors of food insecurity at the county level could help us target interventions and resources where they're needed most and identify policies that are effective at reducing or preventing food insecurity.
 
+## Data Sources
+
+For these analyses, we compiled data from three different sources to identify the factors predicting rates of food insecurity at the county level in the United States:
+
+-   **County Health Rankings.** The County Health Rankings provide annual data for hundreds of health-related indicators at the county level. This includes a measure of the proportion of people in each county experiencing food insecurity. For our outcome variable, we pulled this measure of food insecurity from the most recent data release (County Health Rankings 2024). We pulled data from the previous data release (County Health Rankings 2023) for predictor variables in our model. These variables include sociodemographic and economic measures like race/ethnicity, income inequality, high school graduation rates, unemployment, and cost burden of housing and healthcare; percent living in a rural area; and other environmental and health factors like air pollution, traffic volume, and access to exercise opportunities.
+-   **USDA Food Atlas**. \*\* REMOVED VARS THAT HAD MISSING VALUES FOR MULTIPLE YEARS IN A ROW, RAN NA OMIT FOR THE REST
+-   **SNAP Policy Datasets.**
 
 ## Set Up
 
@@ -218,7 +227,8 @@ chr_2023_small <-
          pct_NH_Black_chr = '% Non-Hispanic Black raw value',
          pct_Hispanic_chr = '% Hispanic raw value',
          pct_NH_white_chr = '% Non-Hispanic White raw value',
-         pct_not_english_prof_chr = '% Not Proficient in English raw value') |> 
+         pct_not_english_prof_chr = '% Not Proficient in English raw value',
+         unemployment_chr = 'Unemployment raw value') |> 
   filter(county_fips!="000") |> 
   mutate(
     fips = as.numeric(fips_5_digit)) |> 
@@ -420,8 +430,7 @@ grid.arrange(p1, p2, p3, p4, p5, p6, ncol = 3)
 
 ```
 
-The density distribution of the program participation proportions do not show the similar trends as we expected before, so we will do the correlation test to determine whether these variables will be included as predictors. 
-
+The density distribution of the program participation proportions do not show the similar trends as we expected before, so we will do the correlation test to determine whether these variables will be included as predictors.
 
 #### Feature Selection
 
@@ -454,6 +463,7 @@ By doing this, we narrow down the number of predictors into 362 variables instea
 
 #### Visualizing Correlations 
 Here, we are visualizing the relationship between our food insecurity measure, and some of the predictors chosen in our correlation test. Below are scatter plots of these variables, with smoothed lines representing the linear relationship. 
+
 ```{r}
 
 c1 <- training %>%
@@ -629,9 +639,11 @@ print(final_rmse)
 ```
 
 ### Simulating Policy Changes
+
 Lastly, we seek to understand how certain policy changes may affect food insecurity levels in counties. We developed a simple microsimulation model with a couple of the more "important" variables in our data to simulate how a change in these policies could increase or decrease food insecurity in counties. 
 
 Using a variable importance plot from our random forest model, we can see which predictors in our model are the most useful for predicting rates of food insecurity in counties in our data set. Understanding the importance of predictors can help inform policies that influence food insecurity. For example, "PCT_WICWOMEN14" and "PCT_WICWOMEN16" represents the percentage of women participating in WIC in 2014 and 2016. Other important predictors are childhood poverty, rates of diabetes, and SNAP participation. Overall, it looks like county participation rates in state-level programs are relatively important predictors in our model.
+
 
 ```{r}
 final_fit_rf |>
@@ -651,6 +663,8 @@ For simplicity, we will apply a calculator to one of the most important predicto
 
 ### Creating a Calculator to Change WIC Policy
 The following function models a change in women participating in the WIC program. We targeted the simulation to change participation in WIC for counties with persistent childhood poverty, which is another important predictor of food insecurity identified by our random forest model.  
+
+
 ```{r}
 
 #' WIC Participation Change
@@ -715,7 +729,6 @@ change_plus_10$food_insecurity_change %>%
 
 change_plus_10$.pred %>%
   summary()
-
 
 dist_table_increase <- change_plus_10 %>%
   mutate(pop_decile = ntile(Population_Estimate_2018, n = 10)) %>%

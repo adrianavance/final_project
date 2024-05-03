@@ -361,6 +361,7 @@ We also think the food security is closely connected to the programs and policie
 
 ```{r}
 
+# Select all program participants variables
 program_participants <- training %>%
   select(
     fips,
@@ -381,7 +382,10 @@ program_participants %>%
   labs(title = "Density plot for food insecurity score",
        x = "Score") +
   theme_minimal()
+```
+The density plot for our dependent variable, the food insecurity value, shows a close to normal distributed bell shape. 0.11 is most common score for the counties with a high density, or high relative probability. 
 
+```{r}
 # Density distribution of program participant proportions among all observations
 
 p1 <- program_participants %>%
@@ -415,20 +419,25 @@ p4 <- program_participants %>%
 p5 <- program_participants %>%
   ggplot() +
   geom_density(mapping = aes(x = PCT_NSLP17), color = "dodgerblue") +
-  labs(title = "2017 National School Lunch Program",
+  labs(title = "2017 National School Lunch",
        x = "Children proportion") +
   theme_minimal()
 
 p6 <- program_participants %>%
   ggplot() +
   geom_density(mapping = aes(x = PCT_SBP17), color = "green") +
-  labs(title = "2017 School Breakfast Program",
+  labs(title = "2017 School Breakfast",
        x = "Children proportion") +
   theme_minimal()
 
 grid.arrange(p1, p2, p3, p4, p5, p6, ncol = 3)
 
 ```
+Comparing to other programs, WIC program has relatively lower proportion of participants. All six density plots are not showing similar distribution patterns. 
+- The proportion of WIC participants concentrate around 1.9% to 2.4%; children and infant proportions are higher, around 21% and 33%, while women participant proportions have multiple peaks, around 2%, 2.4%, 2.7% and 2.9%. 
+- SNAP participant proportion in most counties is around 8% or 14%.
+- The participation children proportions among children for both school lunch and school breakfast programs are much higher than the previous ones. Density of proportions in national school lunch program has three peaks: 50%, 64%, and 71%. The majority of the counties include more than half of their children within the lunch program.
+- The participation proportion distribution in breakfast is relatively lower, and only with two peaks: 24% and 35%. 
 
 The density distribution of the program participation proportions do not show the similar trends as we expected before, so we will do the correlation test to determine whether these variables will be included as predictors.
 
@@ -655,7 +664,8 @@ final_fit_rf |>
     Variable = fct_reorder(.x = Importance, .f = Variable)
   ) |>
   ggplot(aes(Importance, Variable)) +
-  geom_col()
+  geom_col() +
+  theme_minimal()
 
 ```
 
@@ -795,7 +805,6 @@ dist_table_original <- change_minus_10 %>%
     min_pop = min(Population_Estimate_2018),
     max_pop = max(Population_Estimate_2018)
 
-  )
 
 dist_table_original
 

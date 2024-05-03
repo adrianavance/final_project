@@ -1,6 +1,9 @@
 ---
 title: "Final Project"
 author: "Jane Finocharo, Adriana Vance, and Ruining Zheng"
+execute:
+  message: false
+  warning: false
 format:
   html:
     embed-resources: true
@@ -37,6 +40,8 @@ library(tidymodels)
 library(gridExtra)
 library(vip)
 library(glmnet)
+library(patchwork)
+
 ```
 
 ### Loading, Cleaning and Merging Datasets
@@ -316,9 +321,13 @@ atlas_chr_snap <- atlas_chr_snap %>%
 
 #### Problem Formulation
 
-This predictive model aims to predict the food security and health conditions in the county level, through the data of access to healthy food.
+Our final dataset contains information about county and state-level characteristics that our research has shown may have an impact on food insecurity. We aim to create a model that can use these past characteristics to predict food insecurity levels in the future. As described above, our data spans multiple time periods and covers county characteristics related to both food access and socioeconomic status of counties. 
+The characteristics in the data range from years 2010-2023, and will be used to predict the County Health Rankings food insecurity estimates from 2024. 
 
 #### Split Data into Training and Testing Data
+
+By splitting our data into training and testing data, we will be able to see how our predictive model performs on unseen data. In the future, this would ideally be applied to a new data set of all counties with these characteristics, to predict food insecurity levels in proceeding years. 
+
 
 ```{r}
 set.seed(20240430)
@@ -332,6 +341,7 @@ testing <- testing(split)
 
 #### Exploratory Data Analysis
 
+Exploratory data analysis will be important in understanding how our models can best perform. Informed by our research, our exploratory data analysis will allow us to further understand the potential relationships between certain variables in our dataset, and food insecurity levels. 
 ```{r}
 
 training %>%
@@ -460,67 +470,55 @@ sub_training <- training[selected_variables]
 
 By doing this, we narrow down the number of predictors into 362 variables instead of 604 variables in the original training data.
 
-#### Visualizing Correlations
+#### Visualizing Correlations 
+Here, we are visualizing the relationship between our food insecurity measure, and some of the predictors chosen in our correlation test. Below are scatter plots of these variables, with smoothed lines representing the linear relationship. 
 
 ```{r}
 
 c1 <- training %>%
   ggplot(mapping = aes(x = food_insecurity_chr, y = SNAPSPTH17)) + 
-  geom_point() + 
-  geom_smooth() +
+  geom_point(alpha = 0.7, color = "#2FA0E2") + 
+  geom_smooth(color = "#F8BE5B") +
   labs(title = "2017 SNAP-authorized stores",
        x = "Insecurity value",
        y = "Stores/1,000 pop") +
   theme_minimal()
 
 c2 <- training %>%
-  ggplot(mapping = aes(x = food_insecurity_chr, y = SNAPSPTH12)) + 
-  geom_point() + 
-  geom_smooth() +
-  labs(title = "2012 SNAP-authorized stores",
+  ggplot(mapping = aes(x = food_insecurity_chr, y = PCT_WICWOMEN16)) + 
+  geom_point(alpha = 0.7, color = "#2FA0E2") + 
+  geom_smooth(color = "#F8BE5B") +
+  labs(title = "Percent of Women WIC Participants, 2016",
        x = "Insecurity value",
        y = "Stores/1,000 pop") +
   theme_minimal()
 
 c3 <- training %>%
-  ggplot(mapping = aes(x = food_insecurity_chr, y = LACCESS_POP10)) + 
-  geom_point() + 
-  geom_smooth() +
-  labs(title = "2010 Population with low access to store",
+  ggplot(mapping = aes(x = food_insecurity_chr, y = PCT_REDUCED_LUNCH15)) + 
+  geom_point(alpha = 0.7, color = "#2FA0E2") + 
+  geom_smooth(color = "#F8BE5B") +
+  labs(title = "Students Eligible for Reduced Price Lunch, 2015",
        x = "Insecurity value",
        y = "Population count") +
   theme_minimal()
 
-c4 <- training %>%
-  ggplot(mapping = aes(x = food_insecurity_chr, y = GROC16)) + 
-  geom_point() + 
-  geom_smooth() +
-  labs(title = "2016 Grocery stores",
-       x = "Insecurity value",
-       y = "Store count") +
-  theme_minimal()
-
 c5 <- training %>%
   ggplot(mapping = aes(x = food_insecurity_chr, y = SUPERCPTH16)) + 
-  geom_point() + 
-  geom_smooth() +
+  geom_point(alpha = 0.7, color = "#2FA0E2") + 
+  geom_smooth(color = "#F8BE5B") +
   labs(title = "2016 Supercenters & club stores/1,000 pop",
        x = "Insecurity value",
        y = "Stores/1,000 pop") +
   theme_minimal()
 
-grid.arrange(c1, c2, c3, c4, c5, ncol = 2)
-
-sub_training %>%
-  mutate(log_pop = log(Population_Estimate_2018)) %>%
-  ggplot(mapping = aes(x = log_pop)) +
-  geom_density() +
-  theme_minimal()
+grid.arrange(c1, c2, c3, c5, ncol = 2)
 
 ```
+These plots show the relationship between select predictor variables and food insecurity in counties. It is evident that the relationships between predictor variables and food insecurity vary widely across the data, indicating that a non-parametric or more advanced regression method may be useful in creating our predictive model. 
+To test this assumption, we created both a LASSO regression and a random forest model, using the predictor variables selected with our correlation test. 
 
-#### Set up Resampling
-
+#### Setting up Resampling
+Because counties vary widely by population, we chose to conduct stratified sampling based on ACS population estimates provided in the food atlas dataset. This stratified sampling method will ensure there is an even distribution of different population levels in our training data. 
 ```{r}
 sub_folds <- vfold_cv(data = sub_training, v = 10, repeats = 10, strata = Population_Estimate_2018)
 
@@ -528,15 +526,16 @@ sub_folds <- vfold_cv(data = sub_training, v = 10, repeats = 10, strata = Popula
 
 #### Lasso Regression
 
+In designing our LASSO regression model, we filtered out zero or near-zero variance predictors, which are predictors with few unique values such that they are not useful in predicting variance in food insecurity. For the remaining values, we impute the mean for any missingness rather than omitting NA values. This will allow us to use our model to predict food insecurity values across all counties, rather than omitting counties that have NA values in certain observations. Normalizing predictors standardizes the units of predictor variables. Lastly, step_other pools infrequent values in our categorical variables into an "other category"
 ```{r}
 
 lasso_rec <- recipe(food_insecurity_chr ~ ., data = sub_training) %>%
-  add_role(fips, new_role = "id") %>%
+  add_role(fips, new_role = "id") %>% # Add ID role for county FIPS code
   step_rm(has_role("id")) %>%
-  step_nzv(all_predictors()) %>%
-  step_impute_mean(all_predictors()) %>%
-  step_normalize(all_numeric_predictors()) %>% 
-  step_other(all_nominal(), threshold = 0.05)
+  step_nzv(all_predictors()) %>% # Filter out near zero variance predictors
+  step_impute_mean(all_predictors()) %>% # Impute mean for missing values
+  step_normalize(all_numeric_predictors()) %>% # Normalize predictors
+  step_other(all_nominal(), threshold = 0.05) # Pool infrequent values into "other" category
   
 lasso_mod <- linear_reg(penalty = tune(), mixture = 1) %>%
   set_mode(mode = "regression") %>%
@@ -562,11 +561,15 @@ lasso_res %>%
 best_lasso <- lasso_res %>%
   select_best(metric = "rmse")
 
-
 ```
+The best RMSE of our lasso model is .0178, which indicates that the average difference between predicted and actual values in this model is about 1.7 percentage points. In the context of food insecurity, this is a relatively accurate model. As demonstrated in our exploratory data analysis, food insecurity across counties ranges from 5% to 25%. 
+
+The LASSO regression results are promising- we will try similar feature engineering in a random forest model, to see how a nonparametric method may predict food insecurity levels.
 
 #### Random Forest
 
+In our random forest model, we again assign ID roles to identification variables, eliminate non-zero and near-zero variance predictors, normalize predictors, and group together infrequent values into an "other" category.
+As for the hyperparameters, we increased the number of trees and mtrys which resulted in incremental improvements in our error metric.
 ```{r}
 
 set.seed(2024)
@@ -580,7 +583,7 @@ rf_rec <- recipe(food_insecurity_chr ~ ., sub_training) %>%
 
 rf_mod <- rand_forest(
   trees = 200,
-  mtry = 14,
+  mtry = 30,
   min_n = 5
 ) %>%
   set_mode(mode = "regression") %>%
@@ -607,10 +610,11 @@ final_fit_rf <- finalize_workflow(rf_wf, best_rf) %>%
   last_fit(split)
 
 
-
 ```
+The results of our random forest model are slightly worse than our LASSO model, but the RMSE is generally still quite good. We see that on average there is a 1.8 percentage point difference between the predicted and true values in our food insecurity measure. Because the results of this model are similar to our LASSO regression, we can use it later to determine the importance of predictors in measuring food insecurity. 
 
 #### Expand the Model Fit
+We chose to apply our best lasso model to the testing data to see how it performs on unseen data. We can see that the RMSE of our LASSO model applied to the testing data is just slightly higher than the RMSE of the LASSO applied to the training data. This indicates that this model performs quite well on unseen data, which would be extremely useful for implementing on unseen county characteristics to predict future food insecurity.
 
 ```{r}
 
@@ -645,7 +649,10 @@ print(final_rmse)
 
 ### Simulating Policy Changes
 
-Lastly, we seek to understand how certain policy changes may affect food insecurity levels in counties. We developed a simple microsimulation model with some of the more "important" variables in our data to simulate how a change in these policies could increase or decrease food insecurity in select counties.
+Lastly, we seek to understand how certain policy changes may affect food insecurity levels in counties. We developed a simple microsimulation model with a couple of the more "important" variables in our data to simulate how a change in these policies could increase or decrease food insecurity in counties. 
+
+Using a variable importance plot from our random forest model, we can see which predictors in our model are the most useful for predicting rates of food insecurity in counties in our data set. Understanding the importance of predictors can help inform policies that influence food insecurity. For example, "PCT_WICWOMEN14" and "PCT_WICWOMEN16" represents the percentage of women participating in WIC in 2014 and 2016. Other important predictors are childhood poverty, rates of diabetes, and SNAP participation. Overall, it looks like county participation rates in state-level programs are relatively important predictors in our model.
+
 
 ```{r}
 final_fit_rf |>
@@ -662,13 +669,31 @@ final_fit_rf |>
 
 ```
 
-Using a variable importance plot from our random forest model, we can see which predictors in our model are the most useful for predicting rates of food insecurity in counties in our dataset. Understanding which predictors are most important for predicting food insecurity can inform policy change. For example, "PCT_SBP12" and "PCT_SBP17" represent the percentage of School Breakfast Program participants at the state level. "PCT_WICWOMEN16" and "PCT_WICWOMEN16" represents the percentage of women participating in WIC in 2014 and 2016. Other important predictors are childhood poverty, rates of diabetes, and SNAP participation. Overall, it looks like county participation rates in state-level programs are more important predictors than county-level characteristics.
-
-For simplicity, we will apply a calculator to one of the most important predictors, participation of women in WIC. Modeling increased participation in the WIC program can give us an idea of how a change to this policy may affect food insecurity rates in counties in the United States.
+For simplicity, we will apply a calculator to one of the most important predictors, participation of women in WIC, a food assistance program targeted toward new mothers and infants in need of supplemental nutrition assistance. The program provides staple foods to mothers and children who meet nutritional risk criteria. Modeling increased participation in the WIC program can give us an idea of how a change to this policy may affect food insecurity rates in counties in the United States. 
 
 ### Creating a Calculator to Change WIC Policy
+The following function models a change in women participating in the WIC program. We targeted the simulation to change participation in WIC for counties with persistent childhood poverty, which is another important predictor of food insecurity identified by our random forest model.  
+
 
 ```{r}
+
+#' WIC Participation Change
+#'
+#' @param child_pov # Variable representing persistent child poverty in counties, in this case "PERCHLDPOV10" 
+#' @param wic_part # Original participation rate of women in WIC, in this case "PCT_WICWOMEN16"
+#' @param wic_part_change # Change in participation to model. Can be any positive or negative integer. 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+#' Example: Modeling a 10% increase in % of women participating in WIC
+#' WIC_10 <- atlas_chr_snap %>%
+ # mutate(PCT_WICWOMEN16 = 
+       #  WIC_participation_change(
+       #    child_pov = PERCHLDPOV10, 
+       #      wic_part = PCT_WICWOMEN16, 
+       #      wic_part_change = 20))
 
 WIC_participation_change <- function(child_pov, wic_part, wic_part_change) {
   
@@ -680,13 +705,20 @@ WIC_participation_change <- function(child_pov, wic_part, wic_part_change) {
   return(change)
 }
 
+```
+
+We then apply the function to model an increase in WIC participation and a decrease in WIC participation, and compare the changes in food insecurity as a result. To do this, we apply our calculator to our original dataset to change WIC participation rates, and then predict new food insecurity levels using our trained random forest model. This provides an approximation of how food insecurity levels may change if WIC participation increases or decreases.
+
+The following tables show how food insecurity could change with this shift in WIC participation, across 10 population deciles of counties. 
+### Modeling an Increase in WIC Participation
+```{r}
 
 WIC_10 <- atlas_chr_snap %>%
   mutate(PCT_WICWOMEN16 = 
            WIC_participation_change(
              child_pov = PERCHLDPOV10, 
              wic_part = PCT_WICWOMEN16, 
-             wic_part_change = 10))  %>%
+             wic_part_change = 20))  %>%
   select(-food_insecurity_chr)
 
 
@@ -696,20 +728,19 @@ rf_workflow <- extract_workflow(final_fit_rf)
 # Predict food insecurity using the random forest model with the new WIC participation variable
 predicted_food_insecurity <- predict(rf_workflow, new_data = WIC_10)
 
-# Calculate the change in food insecurity
-change_in_food_insecurity <-  predicted_food_insecurity - atlas_chr_snap$food_insecurity_chr
+change_plus_10 <- cbind(predicted_food_insecurity, atlas_chr_snap$food_insecurity_chr, atlas_chr_snap) %>%
+    rename("food_insecurity_original" = "atlas_chr_snap$food_insecurity_chr") 
 
-change_in_food_insecurity$.pred %>%
+change_plus_10 <- change_plus_10 %>%
+  mutate(food_insecurity_change = .pred - food_insecurity_original)
+
+change_plus_10$food_insecurity_change %>%
   summary()
 
-```
+change_plus_10$.pred %>%
+  summary()
 
-### Distributional Analysis
-
-```{r}
-plus_10_pred <- cbind(predicted_food_insecurity, atlas_chr_snap$food_insecurity_chr, atlas_chr_snap)
-
-dist_table <- plus_10_pred %>%
+dist_table_increase <- change_plus_10 %>%
   mutate(pop_decile = ntile(Population_Estimate_2018, n = 10)) %>%
   group_by(pop_decile) %>%
   summarize(
@@ -718,71 +749,101 @@ dist_table <- plus_10_pred %>%
     mean_food_insecurity = mean(.pred)
   )
 
-dist_table
-
-
-participation_increase <- dist_table |>
-  ggplot(aes(pop_decile, mean_food_insecurity)) +
-  geom_col() +
-  scale_x_continuous(breaks = 1:10) +
-  scale_y_continuous(
-    expand = expansion(mult = c(0, 0.1))
-  ) +
-  labs(
-    title = "Distribution of Food Insecurity by Population",
-    subtitle = "Increase in WIC Participation",
-    x = "Familiy Income Decile",
-    y = "Average Benefit"
-  )  +
-  theme_minimal()
-
-dist_table_original <- plus_10_pred %>%
-  mutate(pop_decile = ntile(Population_Estimate_2018, n = 10)) %>%
-  group_by(pop_decile) %>%
-  summarize(
-    min_pop = min(Population_Estimate_2018),
-    max_pop = max(Population_Estimate_2018),
-    mean_food_insecurity = mean(atlas_chr_snap$food_insecurity_chr)
-  )
-
-dist_table_original
-
-participation_original <- dist_table_original |>
-  ggplot(aes(pop_decile, mean_food_insecurity)) +
-  geom_col() +
-  scale_x_continuous(breaks = 1:10) +
-  scale_y_continuous(
-    expand = expansion(mult = c(0, 0.1))
-  ) +
-  labs(
-    title = "Distribution of Food Insecurity by Population",
-    subtitle = "Increase in WIC Participation",
-    x = "Familiy Income Decile",
-    y = "Average Benefit"
-  ) +
-  theme_minimal()
-
-participation_increase
-participation_original
+dist_table_increase
 
 ```
 
+
+### Modeling a Decrease in WIC Participation
 ```{r}
+
 # Predicting food insecurity with a minus 10 percent WIC participation
 WIC_minus_10 <- atlas_chr_snap %>%
   mutate(PCT_WICWOMEN16 = 
            WIC_participation_change(
              child_pov = PERCHLDPOV10, 
              wic_part = PCT_WICWOMEN16, 
-             wic_part_change = -10
+             wic_part_change = -20
              ))  %>%
   select(-food_insecurity_chr)
 
 food_insecurity_minus_10 <- predict(rf_workflow, new_data = WIC_minus_10)
 
-change_minus_10 <- food_insecurity_minus_10 - atlas_chr_snap$food_insecurity_chr
+change_minus_10 <- cbind(food_insecurity_minus_10, atlas_chr_snap$food_insecurity_chr, atlas_chr_snap) %>%
+    rename("food_insecurity_original" = "atlas_chr_snap$food_insecurity_chr") 
+
+change_minus_10 <- change_minus_10 %>%
+  mutate(food_insecurity_change = .pred - food_insecurity_original)
+
+change_minus_10$food_insecurity_change %>%
+  summary()
 
 change_minus_10$.pred %>%
   summary()
 
+
+dist_table_decrease <- change_minus_10 %>%
+  mutate(pop_decile = ntile(Population_Estimate_2018, n = 10)) %>%
+  group_by(pop_decile) %>%
+  summarize(
+    min_pop = min(Population_Estimate_2018),
+    max_pop = max(Population_Estimate_2018),
+    mean_food_insecurity = mean(.pred)
+  )
+dist_table_decrease
 ```
+
+### Modeling Original WIC Participation
+```{r}
+
+# Modeling original level of participation
+dist_table_original <- change_minus_10 %>%
+  mutate(pop_decile = ntile(Population_Estimate_2018, n = 10)) %>%
+  group_by(pop_decile) %>%
+  summarize(
+    mean_food_insecurity = mean(food_insecurity_original),
+    min_pop = min(Population_Estimate_2018),
+    max_pop = max(Population_Estimate_2018)
+
+
+dist_table_original
+
+
+```
+
+### Visualizing Distribution of Food Insecurity after WIC Participation Change
+Lastly, we visualize this change in food insecurity with a line plot.
+While the change is incremental, it is clear that WIC participation has a relationship with food insecurity levels in counties, and the strength of this relationship varies across population levels of counties. 
+
+It appears that a decrease in WIC participation is associated with overall lower levels of food insecurity, across varying population levels. This makes sense if we consider the fact that increased WIC participation is likely correlated with higher levels of food insecurity. An increase in WIC participation is associated with a very slight increase in food insecurity, in the population deciles 6-8. The change is minimal in comparison to a decrease in WIC participation, however. 
+
+The nature of the WIC program is evident in our line plot. The program is designed for mothers and infants who are in significant need of extra assistance for food, so it makes sense that the counties with higher food insecurity levels would have higher WIC participation rates. This simulation demonstrates the importance of the WIC program to counties with high levels of food insecurity, and can inform policy decisions around this and other food assistance programs. 
+
+```{r}
+
+# Combine the data frames
+combined_data <- rbind(
+  transform(dist_table_original, Condition = "Original"),
+  transform(dist_table_increase, Condition = "Increase"),
+  transform(dist_table_decrease, Condition = "Decrease")
+)
+
+# Plot
+combined_plot <- ggplot(combined_data, aes(x = pop_decile, y = mean_food_insecurity, color = Condition)) +
+  geom_line() +
+  scale_x_continuous(breaks = 1:10) +
+  labs(
+    title = "Distribution of Food Insecurity by Population",
+    subtitle = "Comparison of WIC Participation Conditions",
+    x = "Population Decile",
+    y = "Average Food Insecurity Levels"
+  ) +
+  theme_minimal()
+
+# Display the plot
+print(combined_plot)
+
+
+```
+
+#### Conclusion

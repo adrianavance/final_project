@@ -17,7 +17,7 @@ bibliography: references.bib
 
 In 2021, approximately 10% of American households experienced food insecurity - a lack of access to enough food for a healthy, active life - at some point during the year [@rabbitt]. The percentage of people experiencing food insecurity varies significantly between counties, ranging from 2% to 26% [@hake2023]. Understanding the key predictors of food insecurity at the county level could help us target interventions and resources where they're needed most and identify policies that are effective at reducing or preventing food insecurity.
 
-In this project, we aim to predict the proportion of people in a county experiencing food insecurity using county-level data on sociodemographics, community characteristics, and food environment, as well as state-level data on Supplemental Nutrition Assistance Program (SNAP) policies. We will use lasso regression and random forest models to estimate food insecurity. We will then use the results of these analyses to create a microsimulation model to assess the impact that policy and program participation changes could have on food insecurity.
+In this project, we aim to predict the proportion of people in a county experiencing food insecurity using county-level data on sociodemographics, community characteristics, and food environment, as well as state-level data on Supplemental Nutrition Assistance Program (SNAP) policies. We will use lasso regression and random forest models to estimate food insecurity, the aim of which will be to use these past county characteristics to be able to predict food insecurity in the future. We will then use the results of these analyses to create a microsimulation model to assess the impact that policy and program participation changes could have on food insecurity.
 
 ## Data Sources
 
@@ -90,7 +90,7 @@ snap <- read_excel(here("data", "snap.xlsx"), sheet = 2)
 
 ##### Food Atlas Dataframe
 Here, we pivoted the data to be wider such that each unique county name formed a row. To do so, we used the FIPS codes which are unique identifiers of each county. After pivoting, we noticed there were state-level variables and duplicates of each county. We filtered out any county duplicates using stringr, and created a dataframe of unique state, county, and FIPS codes to join with the final dataset. The final dataset has 3,143 unique observations, which is the number of counties in the U.S.
-```{r}
+```{r output=F}
 
 # Changing values from scientific notation, and rounding decimals to be shorter
 food_atlas <- food_atlas %>%
@@ -128,6 +128,12 @@ food_atlas <- full_join(fips_distinct, atlas_test)
 ```
 
 ##### SNAP Dataframe
+
+The SNAP dataframe is a state-level dataframe of monthly reported data of SNAP policy relevant information by each state from 1996 to 2019. It supposed to have 51*12*10 = 6120 observations, but since we filter out data before year 2010 as well as states' data with too many missing values, the actual observation number is smaller.
+
+Through looking at the documentation for the SNAP policy data, we learned that some variables were systematically missing. There were a few variables (transben, call_any, faceini, facerec, and the recertification variables) that had missing data for multiple years. Because the variables were missing not at random, we decided to remove them from our analysis. The rest of the variables were missing data from 2020, which is likely due to lack of data collection during the pandemic. NA observations were removed because imputation would likely not be able to reflect policy changes made during the pandemic.
+
+After dealing with the missing values, we grouped the dataset by year and state, and took the mode of each observation. The data was categorical, so mode was used to capture the most frequent instance of each policy during each year.
 
 ```{r}
 
@@ -198,11 +204,6 @@ snap_year <- bind_cols(snap_2010,
 
 ```
 
-The SNAP dataframe is a state-level dataframe of monthly reported data of SNAP policy relevant information by each state from 1996 to 2019. It supposed to have 51*12*10 = 6120 observations, but since we filter out data before year 2010 as well as states' data with too many missing values, the actual observation number is smaller.
-
-Through looking at the documentation for the SNAP policy data, we learned that some variables were systematically missing. There were a few variables (transben, call_any, faceini, facerec, and the recertification variables) that had missing data for multiple years. Because the variables were missing not at random, we decided to remove them from our analysis. The rest of the variables were missing data from 2020, which is likely due to lack of data collection during the pandemic. NA observations were removed because imputation would likely not be able to reflect policy changes made during the pandemic.
-
-After dealing with the missing values, we grouped the dataset by year and state, and took the mode of each observation. The data was categorical, so mode was used to capture the most frequent instance of each policy during each year.
 
 ##### County Health Rankings
 
@@ -266,10 +267,16 @@ chr_2024_small <-
 
 #### Removing Inconsistent County Observations
 We ran anti-join commands to check for counties in each dataset that were not present in the other dataset, and removed two counties from 2024 and one county from 2023 as a result. We then merged the two CHR datasets. In the next section, we will merge the combined CHR dataset with the food atlas data and the SNAP policy data.
+The following output are tibbles listing the counties that do not match between datasets. These are counties that were either changed or removed between data collection, so they will  be removed.
+
 ```{r}
 anti_join(chr_2024_small, chr_2023_small, by = "fips")
-anti_join(chr_2023_small, chr_2024_small, by = "fips")
 
+anti_join(chr_2023_small, chr_2024_small, by = "fips")
+```
+
+Here, we filter out the counties.
+```{r}
 
 chr_2024_small <- 
   chr_2024_small |> 
@@ -279,10 +286,16 @@ chr_2023_small <-
   chr_2023_small |> 
   filter(fips != 2261)
 
+```
 
+The following anti-joins show that there are no longer any county observations that do not match.
+```{r}
 anti_join(chr_2024_small, chr_2023_small, by = "fips")
-anti_join(chr_2023_small, chr_2024_small, by = "fips")
 
+anti_join(chr_2023_small, chr_2024_small, by = "fips")
+```
+Here, we join the final County Health Rankings dataset.
+```{r}
 chr_small <- 
   full_join(chr_2024_small, chr_2023_small, by = "fips")
 
@@ -322,15 +335,15 @@ chr_small <- chr_small %>%
 anti_join(food_atlas, chr_small, by = "fips") # success!
 anti_join(chr_small, food_atlas, by = "fips") # success!
 
+```
+
+Here, we join the Food Atlas and County Health Rankings datasets
+```{r}
 atlas_chr <- full_join(food_atlas, chr_small, by = "fips") 
-
-
 
 ```
 
-
-Next, we merged the combined food atlas/CHR data with the state-level SNAP data. We conducted a left join to map state level data onto each county. We then removed variables that directly indiciate food security/insecurity, other than our outcome variable from CHR.
-
+Next, we merged the combined food atlas/CHR data with the state-level SNAP data. We conducted a left join to map state level data onto each county. We then removed variables that directly indicate food security/insecurity, other than our outcome variable from CHR.
 
 ```{r}
 snap_year <- snap_year %>%

@@ -8,7 +8,15 @@ format:
 date: today
 editor: visual
 ---
-  
+
+## Background
+
+
+
+## Set Up
+
+### Load Libraries
+
 ```{r}
 library(tidyverse)
 library(here)
@@ -19,25 +27,29 @@ library(DescTools)
 library(tidymodels)
 library(gridExtra)
 library(vip)
+library(glmnet)
 ```
 
 ### Loading, Cleaning and Merging Datasets
 
-We might want to find an easier way to load in the data, but for now I just created a data folder in my directory, and named the files CHR.csv, FEA.csv, FEA_supplement.csv, and snap.xlsx
+First, create a folder in your directory called "data". Then follow the instructions below to access the datasets and save them with the correct names in the data folder:
 
-How to access the data:
-  
-  \- **County Health Rankings**: At [this link](https://www.countyhealthrankings.org/health-data/methodology-and-sources/data-documentation), click "2024 CHR CSV Analytic Data". Rename file "CHR.csv"
+\- **County Health Rankings 2024**: At [this link](https://www.countyhealthrankings.org/health-data/methodology-and-sources/data-documentation), click "2024 CHR CSV Analytic Data". Rename file "CHR_2024.csv"
+
+\- **County Health Rankings 2023**: At [this link](https://www.countyhealthrankings.org/health-data/methodology-and-sources/data-documentation), click "2023 CHR CSV Analytic Data". Rename file "CHR_2023.csv"
 
 \- **Food Environment Atlas**: At [this link](https://www.ers.usda.gov/data-products/food-environment-atlas/data-access-and-documentation-downloads/#Current%20Version), click "Food Environemnt Atlas .csv Files." Open the .zip file, move "StateAndCountyData.csv" into data folder, rename "FEA.csv". Move "SupplementalDataCounty.csv" into data folder, rename "FEA_supplement.csv". Move "VariableList.csv" into the data folder.
-                                                
+
 \- **SNAP Policy Data:** At [this link](https://www.ers.usda.gov/data-products/snap-policy-data-sets/), click "Snap Policy Database." Move into data folder, rename "snap.xlsx"
-                                              
+
 ```{r}
                                               
 # county health rankings
-chr_col_names <- names(read_csv(here("data", "CHR.csv"), n_max = 0))
-county_health_rankings <- read_csv(here("data", "CHR.csv"), col_names = chr_col_names, skip = 2)
+chr_col_names_2024 <- names(read_csv(here("data", "CHR_2024.csv"), n_max = 0))
+chr_2024 <- read_csv(here("data", "CHR_2024.csv"), col_names = chr_col_names_2024, skip = 2)
+
+chr_col_names_2023 <- names(read_csv(here("data", "CHR_2023.csv"), n_max = 0))
+chr_2023 <- read_csv(here("data", "CHR_2023.csv"), col_names = chr_col_names_2023, skip = 2)
 
 # food atlas + food atlas supplement
 food_atlas <- read_csv(here("data", "FEA.csv"))
@@ -48,37 +60,10 @@ atlas_vars <- read_csv(here("data", "VariableList.csv"))
 snap <- read_excel(here("data", "snap.xlsx"), sheet = 2)
 
 ```
-                                              
-The county health rankings dataset has over 700 variables. We need to pick which ones we'd like to take as health measures of our counties. The other problem is understanding which years these datapoints come from, because it seems to differ by measure. Variables from county health rankings data that may be helpful:
 
--   v133_rawvalue, v133_numerator, v133_denominator (food environment index)
--   v132_rawvalue, v132_numerator, v132_denominator (access to exercise opportunities)
--   v132_rawvalue, v132_numerator, v132_denominator (income inequality)
--   v024_rawvalue, v024_numerator, v024_denominator (children in poverty)
--   v125_rawvalue, v125_numerator, v125_denominator (air pollution particulate matter)
--   v147_rawvalue, v147_numerator, v147_denominator (life expectancy)
--   v139_rawvalue, v139_numerator (food insecurity)
--   v083_rawvalue, v083_numerator, v083_denominator (ltd. access to healthy foods)
--   v003_rawvalue, v003_numerator, v003_denominator (uninsured adults)
--   v003_rawvalue, v003_numerator, v003_denominator (uninsured children)
--   v021_rawvalue, v021_numerator, v021_denominator (HS graduation)
--   v171_rawvalue (childcare cost burdened)
--   v156_rawvalue (traffic volume)
--   v058_rawvalue, v058_numerator, v058_denominator (rural)
+#### Tidying the Datasets for Merging
 
-The food environment atlas has various variables measuring access to food and other things, but the data is not tidy. Needs to be reorganized. The supplement contains population estimates. May be helpful as controls? - Might be helpful to select which food atlas variables we want to keep before tidying the data. That way we can filter beforehand.
-
-The SNAP policy dataset is tidy and organized by state. Easy to interpret, but the observations are by yearmonth, meaning there are 12 observations for every year of the data. Not sure how to navigate this.
-
-Challenges/to do: Clean datasets, understand what year all the variables come from, see if it is possible to merge datasets by county and understand which counties have changed overtime. [This link](https://www.census.gov/programs-surveys/geography/technical-documentation/county-changes.2010.html#list-tab-957819518) could be helpful for knowing which county boundaries have changed overtime.
-
-### Tidying the Datasets for Merging
-
-1.  Each variable must form a column
-2.  Each observation must form a row
-3.  Each type of observational unit forms a dataframe.
-
-#### Food Atlas Dataframe
+##### Food Atlas Dataframe
 
 ```{r}
 
@@ -119,7 +104,7 @@ food_atlas <- full_join(fips_distinct, atlas_test)
 
 Here, we pivoted the data to be wider such that each unique county name formed a row. To do so, we used the FIPS codes which are unique identifiers of each county. After pivoting, we noticed there were state-level variables and duplicates of each county. We filtered out any county duplicates using stringr, and created a dataframe of unique state, county, and FIPS codes to join with the final dataset. The final dataset has 3,143 unique observations, which is the number of counties in the U.S.
 
-#### SNAP Dataframe
+##### SNAP Dataframe
 
 ```{r}
 
@@ -192,25 +177,25 @@ snap_year <- bind_cols(snap_2010,
 
 The SNAP dataframe is a state-level dataframe of monthly reported data of SNAP policy relevant information by each state from 1996 to 2019. It supposed to have 51*12*10 = 6120 observations, but since we filter out data before year 2010 as well as states' data with too many missing values, the actual observation number is smaller.
 
-Through looking at the documentation for the SNAP policy data, we learned that some variables were systematically missing. There were a few variables (transben, call_any, faceini, facerec, and the recertification variables) that had missing data for multiple years. Because the variables were missing not at random, we decided to remove them from our analysis. The rest of the variables were missing data from 2020, which is likely due to lack of data collection during the pandemic. NA observations were removed because imputation would likely not be able to reflect policy changes made during the pandemic. 
+Through looking at the documentation for the SNAP policy data, we learned that some variables were systematically missing. There were a few variables (transben, call_any, faceini, facerec, and the recertification variables) that had missing data for multiple years. Because the variables were missing not at random, we decided to remove them from our analysis. The rest of the variables were missing data from 2020, which is likely due to lack of data collection during the pandemic. NA observations were removed because imputation would likely not be able to reflect policy changes made during the pandemic.
 
-After dealing with the missing values, we grouped the dataset by year and state, and took the mode of each observation. The data was categorical, so mode was used to capture the most frequent instance of each policy during each year. 
+After dealing with the missing values, we grouped the dataset by year and state, and took the mode of each observation. The data was categorical, so mode was used to capture the most frequent instance of each policy during each year.
 
-#### County Health Rankings
+##### County Health Rankings
 
 ```{r}
 
 # selecting and renaming key variables. adding _chr at end so we know which variables came from CHR in merged dataset
 
-chr_small <- 
-  county_health_rankings |> 
+chr_2023_small <- 
+  chr_2023 |> 
   select(state_fips = 'State FIPS Code',
          county_fips = 'County FIPS Code',
          state = 'State Abbreviation',
          fips_5_digit = '5-digit FIPS Code',
          county = 'Name',
-         food_env_index_chr = 'Food Environment Index raw value',
-         exercise_access_chr = 'Access to Exercise Opportunities raw value',
+         food_env_index_chr = 'Food Environment Index raw value', # 2019
+         exercise_access_chr = 'Access to Exercise Opportunities raw value', #2023, 2020, 2022
          child_poverty_chr = 'Children in Poverty raw value',
          income_inequality_chr = 'Income Inequality raw value',
          air_pollution_chr = 'Air Pollution - Particulate Matter raw value',
@@ -221,7 +206,6 @@ chr_small <-
          traffic_volume_chr = 'Traffic Volume raw value',
          rural_chr = '% Rural raw value', 
          hs_grad_rate_chr = 'High School Graduation raw value',
-         food_insecurity_chr = 'Food Insecurity raw value',
          life_expectancy_chr = 'Life Expectancy raw value',
          pct_under18_chr = '% Below 18 Years of Age raw value',
          housing_cost_burden_chr = 'Severe Housing Cost Burden raw value',
@@ -236,10 +220,46 @@ chr_small <-
   select(!c(state_fips, county_fips, fips_5_digit)) |> 
   mutate_if(is.numeric, ~ round(., digits = 4))
 
+
+
+chr_2024_small <- 
+  chr_2024 |> 
+  select(state_fips = 'State FIPS Code',
+         county_fips = 'County FIPS Code',
+         state = 'State Abbreviation',
+         fips_5_digit = '5-digit FIPS Code',
+         county = 'Name',
+         food_insecurity_chr = 'Food Insecurity raw value') |> 
+  filter(county_fips!="000") |> 
+  mutate(
+    fips = as.numeric(fips_5_digit)) |> 
+  select(!c(state_fips, county_fips, fips_5_digit)) |> 
+  mutate_if(is.numeric, ~ round(., digits = 4))
+
+anti_join(chr_2024_small, chr_2023_small, by = "fips")
+anti_join(chr_2023_small, chr_2024_small, by = "fips")
+
+
+chr_2024_small <- 
+  chr_2024_small |> 
+  filter(fips !=2063,
+         fips !=  2066)
+chr_2023_small <- 
+  chr_2023_small |> 
+  filter(fips != 2261)
+
+
+anti_join(chr_2024_small, chr_2023_small, by = "fips")
+anti_join(chr_2023_small, chr_2024_small, by = "fips")
+
+chr_small <- 
+  full_join(chr_2024_small, chr_2023_small, by = "fips")
+
 glimpse(chr_small)
+
 ```
 
-### Merging Data
+#### Merging Data
 
 ```{r}
 
@@ -251,7 +271,8 @@ anti_join(food_atlas, chr_small, by = "fips")
 anti_join(chr_small, food_atlas)
 
 ```
-The anti joins above show the counties in each dataset that are not represented in the other. All of these counties were either changed or deleted in the time that these data were collected. In order to be able to merge our datasets, we will remove these counties from the data. 
+
+The anti joins above show the counties in each dataset that are not represented in the other. All of these counties were either changed or deleted in the time that these data were collected. In order to be able to merge our datasets, we will remove these counties from the data.
 
 ```{r}
 
@@ -261,9 +282,7 @@ food_atlas <- food_atlas %>%
          fips != 46113, 
          fips != 51515)
 chr_small <- chr_small %>%
-  filter(fips != 2063,
-         fips != 2066, 
-         fips != 2158, 
+  filter(fips != 2158, 
          fips != 46102)
 
 # Checking that there are no other unmatched observations 
@@ -287,7 +306,7 @@ atlas_chr_snap <- atlas_chr_snap %>%
 
 #### Problem Formulation
 
-This predictive model aims to predict the food security and health conditions in the county level, through the data of access to healthy food. 
+This predictive model aims to predict the food security and health conditions in the county level, through the data of access to healthy food.
 
 #### Split Data into Training and Testing Data
 
@@ -306,13 +325,6 @@ testing <- testing(split)
 ```{r}
 
 training %>%
-  reframe(
-    mean = mean(POVRATE15),
-    median = median(POVRATE15),
-    range = range(POVRATE15)
-    )
-
-training %>%
   ggplot(mapping = aes(x = POVRATE15, y = food_insecurity_chr, color = POVRATE15)) +
   geom_point() +
   geom_smooth(method = "lm", se = TRUE) +
@@ -322,9 +334,10 @@ training %>%
   theme_minimal()
 
 ```
-The line chart shows a general linear relationship between the poverty rate of each county and the food insecurity value. As the poverty rate increases, the food insecurity value also increases. 
 
-We also think the food security is closely connected to the programs and policies participants since the purposes of these benefits are to help people who are in danger of food insecurity due to various reasons. Thus, we selected the program participant proportional variables and observe the density distribution of them and of food security value. 
+The line chart shows a general linear relationship between the poverty rate of each county and the food insecurity value. As the poverty rate increases, the food insecurity value also increases.
+
+We also think the food security is closely connected to the programs and policies participants since the purposes of these benefits are to help people who are in danger of food insecurity due to various reasons. Thus, we selected the program participant proportional variables and observe the density distribution of them and of food security value.
 
 ```{r}
 
@@ -396,9 +409,12 @@ p6 <- program_participants %>%
 grid.arrange(p1, p2, p3, p4, p5, p6, ncol = 3)
 
 ```
+
 The density distribution of the program participation proportions do not show the similar trends as we expected before, so we will do the correlation test to determine whether these variables will be included as predictors. 
 
+
 #### Feature Selection
+
 ```{r}
 
 correlation <- training %>%
@@ -423,7 +439,8 @@ as.data.frame(selected_variables)
 sub_training <- training[selected_variables]
 
 ```
-By doing this, we narrow down the number of predictors into 362 variables instead of 604 variables in the original training data. 
+
+By doing this, we narrow down the number of predictors into 362 variables instead of 604 variables in the original training data.
 
 #### Visualizing Correlations 
 ```{r}
@@ -512,7 +529,7 @@ lasso_wf <- workflow() %>%
 
 penalty_grid <- grid_regular(penalty(), levels = 20)
 
-lasso_res <- lasso_wf %>%
+lasso_res <- lasso_wf |> 
   tune_grid(
     resamples = sub_folds,
     grid = penalty_grid,

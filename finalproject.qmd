@@ -62,10 +62,9 @@ Alternatively, our data can be accessed in the data folder on our github reposit
 
 \- **SNAP Policy Data:** At [this link](https://www.ers.usda.gov/data-products/snap-policy-data-sets/), click "Snap Policy Database." Move into data folder, rename "snap.xlsx"
 
+#### Loading Data
 
-#### Loading Data 
-
-The following code loads each of the datasets. 
+The following code loads each of the datasets.
 
 ```{r}
                                               
@@ -89,7 +88,9 @@ snap <- read_excel(here("data", "snap.xlsx"), sheet = 2)
 #### Tidying the Datasets for Merging
 
 ##### Food Atlas Dataframe
+
 Here, we pivoted the data to be wider such that each unique county name formed a row. To do so, we used the FIPS codes which are unique identifiers of each county. After pivoting, we noticed there were state-level variables and duplicates of each county. We filtered out any county duplicates using stringr, and created a dataframe of unique state, county, and FIPS codes to join with the final dataset. The final dataset has 3,143 unique observations, which is the number of counties in the U.S.
+
 ```{r output=F}
 
 # Changing values from scientific notation, and rounding decimals to be shorter
@@ -204,10 +205,9 @@ snap_year <- bind_cols(snap_2010,
 
 ```
 
-
 ##### County Health Rankings
 
-Here, we selected predictor variables from the CHR 2023 dataset and selected the food insecurity outcome measure from the CHR 2024 dataset. We used the 2023 dataset for our predictors to ensure that all predictor variables predated our outcome variable. We removed the rows for national and state-level data and kept data for counties.  
+Here, we selected predictor variables from the CHR 2023 dataset and selected the food insecurity outcome measure from the CHR 2024 dataset. We used the 2023 dataset for our predictors to ensure that all predictor variables predated our outcome variable. We removed the rows for national and state-level data and kept data for counties.
 
 ```{r}
 
@@ -266,8 +266,8 @@ chr_2024_small <-
 ```
 
 #### Removing Inconsistent County Observations
-We ran anti-join commands to check for counties in each dataset that were not present in the other dataset, and removed two counties from 2024 and one county from 2023 as a result. We then merged the two CHR datasets. In the next section, we will merge the combined CHR dataset with the food atlas data and the SNAP policy data.
-The following output are tibbles listing the counties that do not match between datasets. These are counties that were either changed or removed between data collection, so they will  be removed.
+
+We ran anti-join commands to check for counties in each dataset that were not present in the other dataset, and removed two counties from 2024 and one county from 2023 as a result. We then merged the two CHR datasets. In the next section, we will merge the combined CHR dataset with the food atlas data and the SNAP policy data. The following output are tibbles listing the counties that do not match between datasets. These are counties that were either changed or removed between data collection, so they will be removed.
 
 ```{r}
 anti_join(chr_2024_small, chr_2023_small, by = "fips")
@@ -276,6 +276,7 @@ anti_join(chr_2023_small, chr_2024_small, by = "fips")
 ```
 
 Here, we filter out the counties.
+
 ```{r}
 
 chr_2024_small <- 
@@ -289,12 +290,15 @@ chr_2023_small <-
 ```
 
 The following anti-joins show that there are no longer any county observations that do not match.
+
 ```{r}
 anti_join(chr_2024_small, chr_2023_small, by = "fips")
 
 anti_join(chr_2023_small, chr_2024_small, by = "fips")
 ```
+
 Here, we join the final County Health Rankings dataset.
+
 ```{r}
 chr_small <- 
   full_join(chr_2024_small, chr_2023_small, by = "fips")
@@ -316,9 +320,7 @@ anti_join(chr_small, food_atlas)
 
 ```
 
-
 We removed the counties that are not present in both datasets, confirmed that the datasets now match, and then merged the food atlas and CHR data.
-
 
 ```{r}
 
@@ -338,6 +340,7 @@ anti_join(chr_small, food_atlas, by = "fips") # success!
 ```
 
 Here, we join the Food Atlas and County Health Rankings datasets
+
 ```{r}
 atlas_chr <- full_join(food_atlas, chr_small, by = "fips") 
 
@@ -355,7 +358,6 @@ atlas_chr_snap <- left_join(atlas_chr, snap_year)
 atlas_chr_snap <- atlas_chr_snap %>%
   select(-contains(c("FOODSEC", "FOODINSEC")))
 ```
-
 
 ### Predictive Model
 
@@ -474,7 +476,13 @@ grid.arrange(p1, p2, p3, p4, p5, p6, ncol = 3)
 
 ```
 
-Comparing to other programs, WIC program has relatively lower proportion of participants. All six density plots are not showing similar distribution patterns. - The proportion of WIC participants concentrate around 1.9% to 2.4%; children and infant proportions are higher, around 21% and 33%, while women participant proportions have multiple peaks, around 2%, 2.4%, 2.7% and 2.9%. - SNAP participant proportion in most counties is around 8% or 14%. - The participation children proportions among children for both school lunch and school breakfast programs are much higher than the previous ones. Density of proportions in national school lunch program has three peaks: 50%, 64%, and 71%. The majority of the counties include more than half of their children within the lunch program. - The participation proportion distribution in breakfast is relatively lower, and only with two peaks: 24% and 35%.
+Compared to other programs, the WIC program has a relatively lower proportion of participants. All six density plots are not showing similar distribution patterns.
+
+-   The proportion of WIC participants concentrate around 1.9% to 2.4%; children and infant proportions are higher, around 21% and 33%, while women participant proportions have multiple peaks, around 2%, 2.4%, 2.7% and 2.9%. - SNAP participant proportion in most counties is around 8% or 14%.
+
+-   The participation children proportions among children for both school lunch and school breakfast programs are much higher than the previous ones. Density of proportions in national school lunch program has three peaks: 50%, 64%, and 71%. The majority of the counties include more than half of their children within the lunch program.
+
+-   The participation proportion distribution in breakfast is relatively lower, and only with two peaks: 24% and 35%.
 
 The density distribution of the program participation proportions do not show the similar trends as we expected before, so we will do the correlation test to determine whether these variables will be included as predictors.
 
@@ -482,7 +490,7 @@ The density distribution of the program participation proportions do not show th
 
 Here, we perform feature selection based on the correlation coefficients between the numeric variables in our data and our target variable, non-return rate. We first filter out variables that don't have a correlation with non return rate. Since most factors have both a population and proportion variables, we only keep the proportion observations due to the variance in population. We also keep the number of blocks in track, and land area as a feature.
 
-Here, we perform feature selection before our model specification to narrow down the number of predictors we will be using. Firstly, we measure the correlation between our variable of interest--food insecurity-- and our other variables. After, we filter out any variables that have a correlation of 0 with our food insecurity 
+Here, we perform feature selection before our model specification to narrow down the number of predictors we will be using. Firstly, we measure the correlation between our variable of interest--food insecurity-- and our other variables. After, we filter out any variables that have a correlation of 0 with our food insecurity
 
 By doing this, we narrow down the number of predictors into about 350 variables instead of 604 variables in the original training data.
 
@@ -509,8 +517,6 @@ selected_variables <- intersect(names(correlation_df), names(training))
 sub_training <- training[selected_variables]
 
 ```
-
-
 
 #### Visualizing Correlations
 
@@ -558,9 +564,7 @@ grid.arrange(c1, c2, c3, c5, ncol = 2)
 
 ```
 
-These plots show the relationship between select predictor variables and food insecurity in counties. It is evident that the relationships between predictor variables and food insecurity vary widely across the data, indicating that a non-parametric or more advanced regression method, such as regularization, may be useful in creating our predictive model. 
-To test this assumption, we created both a LASSO regression and a random forest model, using the predictor variables selected with our correlation test. 
-
+These plots show the relationship between select predictor variables and food insecurity in counties. It is evident that the relationships between predictor variables and food insecurity vary widely across the data, indicating that a non-parametric or more advanced regression method, such as regularization, may be useful in creating our predictive model. To test this assumption, we created both a LASSO regression and a random forest model, using the predictor variables selected with our correlation test.
 
 #### Setting up Resampling
 
@@ -759,11 +763,11 @@ WIC_participation_change <- function(child_pov, wic_part, wic_part_change) {
 
 We then apply the function to model an increase in WIC participation and a decrease in WIC participation, and compare the changes in food insecurity as a result. To do this, we apply our calculator to our original dataset to change WIC participation rates, and then predict new food insecurity levels using our trained random forest model. This provides an approximation of how food insecurity levels may change if WIC participation increases or decreases.
 
-
-The following tables show how food insecurity could change with this shift in WIC participation, across 10 population deciles of counties. 
+The following tables show how food insecurity could change with this shift in WIC participation, across 10 population deciles of counties.
 
 ### Modeling an Increase in WIC Participation
-The following output is a summary of the predicted values of food insecurity with a 20% increase in womens' participation in the WIC program. 
+
+The following output is a summary of the predicted values of food insecurity with a 20% increase in womens' participation in the WIC program.
 
 ```{r}
 
@@ -798,6 +802,7 @@ change_plus_10$food_insecurity_original %>%
   summary()
 
 ```
+
 In comparison with the summary of food insecurity at original levels, we can see that an increase in WIC participation may be associated with a slight increase in food insecurity, as average food insecurity is slightly higher with the participation change.
 
 ```{r}
@@ -818,6 +823,7 @@ dist_table_increase
 The above distribution table demonstrates how average food insecurity is distributed across 10 different levels of population in counties; this table will be used later to create a visualization comparing changes in participation.
 
 ### Modeling a Decrease in WIC Participation
+
 The following output is a summary of food insecurity when womens' participation in WIC decreases by 20%. As we can see, average food insecurity decreases in comparison to original levels of participation, from approximately 0.1146 to 0.1137.
 
 ```{r}
@@ -856,7 +862,8 @@ dist_table_decrease <- change_minus_10 %>%
   )
 dist_table_decrease
 ```
-Once again, this distribution table shows average food insecurity across population deciles with a decrease in WIC participation. This will be used to visualize the difference in participation below. 
+
+Once again, this distribution table shows average food insecurity across population deciles with a decrease in WIC participation. This will be used to visualize the difference in participation below.
 
 ### Modeling Original WIC Participation
 
@@ -876,12 +883,9 @@ dist_table_original
 
 ```
 
-
 ### Visualizing Distribution of Food Insecurity after WIC Participation Change
 
-Lastly, we visualize this change in food insecurity with a line plot.
-While the change is incremental, it is clear that WIC participation has a relationship with food insecurity levels in counties, and the strength of this relationship varies across population levels of counties. 
-
+Lastly, we visualize this change in food insecurity with a line plot. While the change is incremental, it is clear that WIC participation has a relationship with food insecurity levels in counties, and the strength of this relationship varies across population levels of counties.
 
 It appears that a decrease in WIC participation is associated with overall lower levels of food insecurity, across varying population levels. This makes sense if we consider the fact that increased WIC participation is likely correlated with higher levels of food insecurity. An increase in WIC participation is associated with a very slight increase in food insecurity, in the population deciles 6-8. The change is minimal in comparison to a decrease in WIC participation, however.
 
@@ -914,14 +918,14 @@ print(combined_plot)
 
 ```
 
-
 ### Conclusion
-In our project we set out to create a predictive model that reliably predicts food insecurity levels in counties based on sociodemographic and policy characteristics. While we were unable to actually apply the model to implementation data, it seems that it performs reliably on unseen data. 
 
-This model could be used to predict food insecurity levels in response to policy or environmental changes, such as participation in certain government programs. We modeled a change in WIC participation using one of our predictive models, and found that we could predict how food insecurity may change in response to changes in behavior. 
+In our project we set out to create a predictive model that reliably predicts food insecurity levels in counties based on sociodemographic and policy characteristics. While we were unable to actually apply the model to implementation data, it seems that it performs reliably on unseen data.
+
+This model could be used to predict food insecurity levels in response to policy or environmental changes, such as participation in certain government programs. We modeled a change in WIC participation using one of our predictive models, and found that we could predict how food insecurity may change in response to changes in behavior.
 
 While this can be very useful in policy applications, the simulation model was quite simple-- it is clear that policy expertise is needed to understand exactly how program participation would change in order to increase the accuracy of predictions.
 
-Food insecurity is a persistent problem in communities across the United States, and county-level policy changes may be helpful in mitigating its negative effects. From our variable importance plot and correlation tests, we found that many important predictors of food insecurity are policies that occur at the state level. However, through our predictive models and simulation, we found that other county-level characterstics such as poverty levels and program participation can change how these state-level policies interact with food insecurity levels. 
+Food insecurity is a persistent problem in communities across the United States, and county-level policy changes may be helpful in mitigating its negative effects. From our variable importance plot and correlation tests, we found that many important predictors of food insecurity are policies that occur at the state level. However, through our predictive models and simulation, we found that other county-level characterstics such as poverty levels and program participation can change how these state-level policies interact with food insecurity levels.
 
-In conclusion, our predictive models and simulation provide a helpful view into how county-level characteristics and food policies can affect food insecurity. Our simulation, informed by policy and behavioral expertise can be helpful in predicting how food insecurity may change due to policy or environmental changes. 
+In conclusion, our predictive models and simulation provide a helpful view into how county-level characteristics and food policies can affect food insecurity. Our simulation, informed by policy and behavioral expertise can be helpful in predicting how food insecurity may change due to policy or environmental changes.

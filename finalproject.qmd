@@ -805,7 +805,7 @@ dist_table_original <- change_minus_10 %>%
   summarize(
     mean_food_insecurity = mean(food_insecurity_original),
     min_pop = min(Population_Estimate_2018),
-    max_pop = max(Population_Estimate_2018)
+    max_pop = max(Population_Estimate_2018))
 
 
 dist_table_original

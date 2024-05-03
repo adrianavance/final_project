@@ -48,6 +48,8 @@ library(patchwork)
 
 ### Loading, Cleaning and Merging Datasets
 
+#### Accessing and Downloading Data
+
 First, create a folder in your directory called "data". Then follow the instructions below to access the datasets and save them with the correct names in the data folder:
 
 \- **County Health Rankings 2024**: At [this link](https://www.countyhealthrankings.org/health-data/methodology-and-sources/data-documentation), click "2024 CHR CSV Analytic Data". Rename file "CHR_2024.csv"
@@ -57,6 +59,11 @@ First, create a folder in your directory called "data". Then follow the instruct
 \- **Food Environment Atlas**: At [this link](https://www.ers.usda.gov/data-products/food-environment-atlas/data-access-and-documentation-downloads/#Current%20Version), click "Food Environemnt Atlas .csv Files." Open the .zip file, move "StateAndCountyData.csv" into data folder, rename "FEA.csv". Move "SupplementalDataCounty.csv" into data folder, rename "FEA_supplement.csv". Move "VariableList.csv" into the data folder.
 
 \- **SNAP Policy Data:** At [this link](https://www.ers.usda.gov/data-products/snap-policy-data-sets/), click "Snap Policy Database." Move into data folder, rename "snap.xlsx"
+
+
+#### Loading Data 
+
+The following code loads each of the datasets. 
 
 ```{r}
                                               
@@ -272,9 +279,9 @@ anti_join(chr_2023_small, chr_2024_small, by = "fips")
 chr_small <- 
   full_join(chr_2024_small, chr_2023_small, by = "fips")
 
-glimpse(chr_small)
-
 ```
+Here, we selected predictor variables from the CHR 2023 dataset and selected the food insecurity outcome measure from the CHR 2024 dataset. We used the 2023 dataset for our predictors to ensure that all predictor variables predated our outcome variable. We removed the rows for national and state-level data and kept data for counties. We ran anti-join commands to check for counties in each dataset that were not present in the other dataset, and removed two counties from 2024 and one county from 2023 as a result. We then merged the two CHR datasets. In the next section, we will merge the combined CHR dataset with the food atlas data and the SNAP policy data. 
+
 
 #### Merging Data
 
@@ -289,7 +296,7 @@ anti_join(chr_small, food_atlas)
 
 ```
 
-The anti joins above show the counties in each dataset that are not represented in the other. All of these counties were either changed or deleted in the time that these data were collected. In order to be able to merge our datasets, we will remove these counties from the data.
+The anti joins above show the counties in the food atlas dataset that are not represented in the CHR dataset, and vice versa. All of these counties were either changed or deleted in the time that these data were collected. In order to be able to merge our datasets, we will remove these counties from the data.
 
 ```{r}
 
@@ -308,6 +315,16 @@ anti_join(chr_small, food_atlas, by = "fips") # success!
 
 atlas_chr <- full_join(food_atlas, chr_small, by = "fips") 
 
+
+
+```
+
+We removed the counties that are not present in both datasets, confirmed that the datasets now match, and then merged the food atlas and CHR data.
+
+Next, we merged the combined food atlas/CHR data with the state-level SNAP data. We conducted a left join to map state level data onto each county. We then removed variables that directly indiciate food security/insecurity, other than our outcome variable from CHR.
+
+
+```{r}
 snap_year <- snap_year %>%
   rename(State = state)
 
@@ -316,8 +333,9 @@ atlas_chr_snap <- left_join(atlas_chr, snap_year)
 # We also would like to filter out variables that directly indicate food security/insecurity value in other data frames besides the CHR data.
 atlas_chr_snap <- atlas_chr_snap %>%
   select(-contains(c("FOODSEC", "FOODINSEC")))
-
 ```
+
+
 
 ### Predictive Model
 

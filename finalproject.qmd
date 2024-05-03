@@ -15,7 +15,7 @@ bibliography: references.bib
 
 ## Introduction
 
-In 2021, approximately 10% of American households experienced food insecurity - a lack of access to enough food for a healthy, active life - at some point during the year [@rabbitt]. The percentage of people experiencing food security varies significantly between counties, ranging from 2% to 26% [@hake2023]. Understanding the key predictors of food insecurity at the county level could help us target interventions and resources where they're needed most and identify policies that are effective at reducing or preventing food insecurity.
+In 2021, approximately 10% of American households experienced food insecurity - a lack of access to enough food for a healthy, active life - at some point during the year [@rabbitt]. The percentage of people experiencing food insecurity varies significantly between counties, ranging from 2% to 26% [@hake2023]. Understanding the key predictors of food insecurity at the county level could help us target interventions and resources where they're needed most and identify policies that are effective at reducing or preventing food insecurity.
 
 In this project, we aim to predict the proportion of people in a county experiencing food insecurity using county-level data on sociodemographics, community characteristics, and food environment, as well as state-level data on Supplemental Nutrition Assistance Program (SNAP) policies. We will use lasso regression and random forest models to estimate food insecurity. We will then use the results of these analyses to create a microsimulation model to assess the impact that policy and program participation changes could have on food insecurity.
 
@@ -51,6 +51,8 @@ library(patchwork)
 #### Accessing and Downloading Data
 
 First, create a folder in your directory called "data". Then follow the instructions below to access the datasets and save them with the correct names in the data folder:
+
+Alternatively, our data can be accessed in the data folder on our github repository.
 
 \- **County Health Rankings 2024**: At [this link](https://www.countyhealthrankings.org/health-data/methodology-and-sources/data-documentation), click "2024 CHR CSV Analytic Data". Rename file "CHR_2024.csv"
 
@@ -460,6 +462,12 @@ The density distribution of the program participation proportions do not show th
 
 #### Feature Selection
 
+Here, we perform feature selection based on the correlation coefficients between the numeric variables in our data and our target variable, non-return rate. We first filter out variables that don't have a correlation with non return rate. Since most factors have both a population and proportion variables, we only keep the proportion observations due to the variance in population. We also keep the number of blocks in track, and land area as a feature.
+
+Here, we perform feature selection before our model specification to narrow down the number of predictors we will be using. Firstly, we measure the correlation between our variable of interest--food insecurity-- and our other variables. After, we filter out any variables that have a correlation of 0 with our food insecurity 
+
+By doing this, we narrow down the number of predictors into about 350 variables instead of 604 variables in the original training data.
+
 ```{r}
 
 correlation <- training %>%
@@ -478,14 +486,13 @@ correlation_df <- as.data.frame(correlation) %>%
 
 # Intersect correlation data frame with training data, so only variables show in both data frame will be left. 
 selected_variables <- intersect(names(correlation_df), names(training)) 
-as.data.frame(selected_variables)
 
 # Filter out variables that are not in intersection results as the last step assigned to
 sub_training <- training[selected_variables]
 
 ```
 
-By doing this, we narrow down the number of predictors into 362 variables instead of 604 variables in the original training data.
+
 
 #### Visualizing Correlations
 
@@ -533,7 +540,9 @@ grid.arrange(c1, c2, c3, c5, ncol = 2)
 
 ```
 
-These plots show the relationship between select predictor variables and food insecurity in counties. It is evident that the relationships between predictor variables and food insecurity vary widely across the data, indicating that a non-parametric or more advanced regression method may be useful in creating our predictive model. To test this assumption, we created both a LASSO regression and a random forest model, using the predictor variables selected with our correlation test.
+These plots show the relationship between select predictor variables and food insecurity in counties. It is evident that the relationships between predictor variables and food insecurity vary widely across the data, indicating that a non-parametric or more advanced regression method, such as regularization, may be useful in creating our predictive model. 
+To test this assumption, we created both a LASSO regression and a random forest model, using the predictor variables selected with our correlation test. 
+
 
 #### Setting up Resampling
 
@@ -732,7 +741,11 @@ WIC_participation_change <- function(child_pov, wic_part, wic_part_change) {
 
 We then apply the function to model an increase in WIC participation and a decrease in WIC participation, and compare the changes in food insecurity as a result. To do this, we apply our calculator to our original dataset to change WIC participation rates, and then predict new food insecurity levels using our trained random forest model. This provides an approximation of how food insecurity levels may change if WIC participation increases or decreases.
 
-The following tables show how food insecurity could change with this shift in WIC participation, across 10 population deciles of counties. \### Modeling an Increase in WIC Participation
+
+The following tables show how food insecurity could change with this shift in WIC participation, across 10 population deciles of counties. 
+
+### Modeling an Increase in WIC Participation
+The following output is a summary of the predicted values of food insecurity with a 20% increase in womens' participation in the WIC program. 
 
 ```{r}
 
@@ -757,11 +770,19 @@ change_plus_10 <- cbind(predicted_food_insecurity, atlas_chr_snap$food_insecurit
 change_plus_10 <- change_plus_10 %>%
   mutate(food_insecurity_change = .pred - food_insecurity_original)
 
-change_plus_10$food_insecurity_change %>%
-  summary()
-
 change_plus_10$.pred %>%
   summary()
+
+```
+
+```{r}
+change_plus_10$food_insecurity_original %>%
+  summary()
+
+```
+In comparison with the summary of food insecurity at original levels, we can see that an increase in WIC participation may be associated with a slight increase in food insecurity, as average food insecurity is slightly higher with the participation change.
+
+```{r}
 
 dist_table_increase <- change_plus_10 %>%
   mutate(pop_decile = ntile(Population_Estimate_2018, n = 10)) %>%
@@ -776,7 +797,10 @@ dist_table_increase
 
 ```
 
-#### Modeling a Decrease in WIC Participation
+The above distribution table demonstrates how average food insecurity is distributed across 10 different levels of population in counties; this table will be used later to create a visualization comparing changes in participation.
+
+### Modeling a Decrease in WIC Participation
+The following output is a summary of food insecurity when womens' participation in WIC decreases by 20%. As we can see, average food insecurity decreases in comparison to original levels of participation, from approximately 0.1146 to 0.1137.
 
 ```{r}
 
@@ -798,13 +822,12 @@ change_minus_10 <- cbind(food_insecurity_minus_10, atlas_chr_snap$food_insecurit
 change_minus_10 <- change_minus_10 %>%
   mutate(food_insecurity_change = .pred - food_insecurity_original)
 
-change_minus_10$food_insecurity_change %>%
-  summary()
-
 change_minus_10$.pred %>%
   summary()
 
+```
 
+```{r}
 dist_table_decrease <- change_minus_10 %>%
   mutate(pop_decile = ntile(Population_Estimate_2018, n = 10)) %>%
   group_by(pop_decile) %>%
@@ -815,6 +838,7 @@ dist_table_decrease <- change_minus_10 %>%
   )
 dist_table_decrease
 ```
+Once again, this distribution table shows average food insecurity across population deciles with a decrease in WIC participation. This will be used to visualize the difference in participation below. 
 
 #### Modeling Original WIC Participation
 
@@ -827,17 +851,19 @@ dist_table_original <- change_minus_10 %>%
   summarize(
     mean_food_insecurity = mean(food_insecurity_original),
     min_pop = min(Population_Estimate_2018),
-    max_pop = max(Population_Estimate_2018)
+    max_pop = max(Population_Estimate_2018))
 
 
 dist_table_original
 
-
 ```
 
-#### Visualizing Distribution of Food Insecurity after WIC Participation Change
 
-Lastly, we visualize this change in food insecurity with a line plot. While the change is incremental, it is clear that WIC participation has a relationship with food insecurity levels in counties, and the strength of this relationship varies across population levels of counties.
+### Visualizing Distribution of Food Insecurity after WIC Participation Change
+
+Lastly, we visualize this change in food insecurity with a line plot.
+While the change is incremental, it is clear that WIC participation has a relationship with food insecurity levels in counties, and the strength of this relationship varies across population levels of counties. 
+
 
 It appears that a decrease in WIC participation is associated with overall lower levels of food insecurity, across varying population levels. This makes sense if we consider the fact that increased WIC participation is likely correlated with higher levels of food insecurity. An increase in WIC participation is associated with a very slight increase in food insecurity, in the population deciles 6-8. The change is minimal in comparison to a decrease in WIC participation, however.
 
@@ -870,4 +896,14 @@ print(combined_plot)
 
 ```
 
-### Conclusion
+
+#### Conclusion
+In our project we set out to create a predictive model that reliably predicts food insecurity levels in counties based on sociodemographic and policy characteristics. While we were unable to actually apply the model to implementation data, it seems that it performs reliably on unseen data. 
+
+This model could be used to predict food insecurity levels in response to policy or environmental changes, such as participation in certain government programs. We modeled a change in WIC participation using one of our predictive models, and found that we could predict how food insecurity may change in response to changes in behavior. 
+
+While this can be very useful in policy applications, the simulation model was quite simple-- it is clear that policy expertise is needed to understand exactly how program participation would change in order to increase the accuracy of predictions.
+
+Food insecurity is a persistent problem in communities across the United States, and county-level policy changes may be helpful in mitigating its negative effects. From our variable importance plot and correlation tests, we found that many important predictors of food insecurity are policies that occur at the state level. However, through our predictive models and simulation, we found that other county-level characterstics such as poverty levels and program participation can change how these state-level policies interact with food insecurity levels. 
+
+In conclusion, our predictive models and simulation provide a helpful view into how county-level characteristics and food policies can affect food insecurity. Our simulation, informed by policy and behavioral expertise can be helpful in predicting how food insecurity may change due to policy or environmental changes. 

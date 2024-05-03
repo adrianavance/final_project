@@ -89,7 +89,7 @@ snap <- read_excel(here("data", "snap.xlsx"), sheet = 2)
 #### Tidying the Datasets for Merging
 
 ##### Food Atlas Dataframe
-
+Here, we pivoted the data to be wider such that each unique county name formed a row. To do so, we used the FIPS codes which are unique identifiers of each county. After pivoting, we noticed there were state-level variables and duplicates of each county. We filtered out any county duplicates using stringr, and created a dataframe of unique state, county, and FIPS codes to join with the final dataset. The final dataset has 3,143 unique observations, which is the number of counties in the U.S.
 ```{r}
 
 # Changing values from scientific notation, and rounding decimals to be shorter
@@ -126,8 +126,6 @@ fips_distinct <- food_atlas %>%
 food_atlas <- full_join(fips_distinct, atlas_test)
 
 ```
-
-Here, we pivoted the data to be wider such that each unique county name formed a row. To do so, we used the FIPS codes which are unique identifiers of each county. After pivoting, we noticed there were state-level variables and duplicates of each county. We filtered out any county duplicates using stringr, and created a dataframe of unique state, county, and FIPS codes to join with the final dataset. The final dataset has 3,143 unique observations, which is the number of counties in the U.S.
 
 ##### SNAP Dataframe
 
@@ -208,6 +206,8 @@ After dealing with the missing values, we grouped the dataset by year and state,
 
 ##### County Health Rankings
 
+Here, we selected predictor variables from the CHR 2023 dataset and selected the food insecurity outcome measure from the CHR 2024 dataset. We used the 2023 dataset for our predictors to ensure that all predictor variables predated our outcome variable. We removed the rows for national and state-level data and kept data for counties.  
+
 ```{r}
 
 # selecting and renaming key variables. adding _chr at end so we know which variables came from CHR in merged dataset
@@ -262,6 +262,11 @@ chr_2024_small <-
   select(!c(state_fips, county_fips, fips_5_digit)) |> 
   mutate_if(is.numeric, ~ round(., digits = 4))
 
+```
+
+#### Removing Inconsistent County Observations
+We ran anti-join commands to check for counties in each dataset that were not present in the other dataset, and removed two counties from 2024 and one county from 2023 as a result. We then merged the two CHR datasets. In the next section, we will merge the combined CHR dataset with the food atlas data and the SNAP policy data.
+```{r}
 anti_join(chr_2024_small, chr_2023_small, by = "fips")
 anti_join(chr_2023_small, chr_2024_small, by = "fips")
 
@@ -282,10 +287,10 @@ chr_small <-
   full_join(chr_2024_small, chr_2023_small, by = "fips")
 
 ```
-Here, we selected predictor variables from the CHR 2023 dataset and selected the food insecurity outcome measure from the CHR 2024 dataset. We used the 2023 dataset for our predictors to ensure that all predictor variables predated our outcome variable. We removed the rows for national and state-level data and kept data for counties. We ran anti-join commands to check for counties in each dataset that were not present in the other dataset, and removed two counties from 2024 and one county from 2023 as a result. We then merged the two CHR datasets. In the next section, we will merge the combined CHR dataset with the food atlas data and the SNAP policy data. 
-
 
 #### Merging Data
+
+The anti joins below show the counties in the food atlas dataset that are not represented in the CHR dataset, and vice versa. All of these counties were either changed or deleted in the time that these data were collected. In order to be able to merge our datasets, we will remove these counties from the data.
 
 ```{r}
 
@@ -298,7 +303,9 @@ anti_join(chr_small, food_atlas)
 
 ```
 
-The anti joins above show the counties in the food atlas dataset that are not represented in the CHR dataset, and vice versa. All of these counties were either changed or deleted in the time that these data were collected. In order to be able to merge our datasets, we will remove these counties from the data.
+
+We removed the counties that are not present in both datasets, confirmed that the datasets now match, and then merged the food atlas and CHR data.
+
 
 ```{r}
 
@@ -321,7 +328,6 @@ atlas_chr <- full_join(food_atlas, chr_small, by = "fips")
 
 ```
 
-We removed the counties that are not present in both datasets, confirmed that the datasets now match, and then merged the food atlas and CHR data.
 
 Next, we merged the combined food atlas/CHR data with the state-level SNAP data. We conducted a left join to map state level data onto each county. We then removed variables that directly indiciate food security/insecurity, other than our outcome variable from CHR.
 
@@ -336,7 +342,6 @@ atlas_chr_snap <- left_join(atlas_chr, snap_year)
 atlas_chr_snap <- atlas_chr_snap %>%
   select(-contains(c("FOODSEC", "FOODINSEC")))
 ```
-
 
 
 ### Predictive Model
@@ -840,7 +845,7 @@ dist_table_decrease
 ```
 Once again, this distribution table shows average food insecurity across population deciles with a decrease in WIC participation. This will be used to visualize the difference in participation below. 
 
-#### Modeling Original WIC Participation
+### Modeling Original WIC Participation
 
 ```{r}
 
@@ -897,7 +902,7 @@ print(combined_plot)
 ```
 
 
-#### Conclusion
+### Conclusion
 In our project we set out to create a predictive model that reliably predicts food insecurity levels in counties based on sociodemographic and policy characteristics. While we were unable to actually apply the model to implementation data, it seems that it performs reliably on unseen data. 
 
 This model could be used to predict food insecurity levels in response to policy or environmental changes, such as participation in certain government programs. We modeled a change in WIC participation using one of our predictive models, and found that we could predict how food insecurity may change in response to changes in behavior. 
